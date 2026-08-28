@@ -7,14 +7,26 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
 echo "==> Verificando estado del repo..."
+STASHED=0
 if [ -n "$(git status --porcelain)" ]; then
-  echo "ERROR: hay cambios locales sin commitear en el VPS. Revísalos antes de continuar:"
+  echo "Hay cambios locales en el VPS (ediciones manuales). Se guardan con git stash antes del pull:"
   git status --short
-  exit 1
+  git stash push -u -m "deploy.sh $(date +%F_%T)"
+  STASHED=1
 fi
 
 echo "==> git pull..."
 git pull
+
+if [ "$STASHED" -eq 1 ]; then
+  echo "==> Restaurando cambios locales guardados (git stash pop)..."
+  if ! git stash pop; then
+    echo "ERROR: conflicto al restaurar los cambios locales del VPS."
+    echo "Resuélvelo a mano: revisa 'git status', arregla los conflictos,"
+    echo "'git add <archivo>' y luego vuelve a correr ./deploy.sh."
+    exit 1
+  fi
+fi
 
 if [ ! -f .env ]; then
   echo "ERROR: no existe .env (copia .env.example y complétalo antes del primer deploy)."
