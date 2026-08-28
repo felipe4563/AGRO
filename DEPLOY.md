@@ -3,19 +3,33 @@
 Este stack asume que el VPS **ya tiene un proxy reverso** (nginx/Traefik/Caddy)
 atendiendo otros dominios y encargado de los certificados SSL. Docker Compose
 aquí **no** expone los puertos 80/443 directamente: solo publica el frontend
-en `127.0.0.1:8080`, y ese proxy externo es quien apunta `samagro.rusoft.dev`
+en `127.0.0.1:8083`, y ese proxy externo es quien apunta `samagro.rusoft.dev`
 hacia ese puerto.
 
 ## 1. Requisitos en el VPS
 
 - Docker Engine + plugin `docker compose` (`docker compose version`).
-- El proyecto copiado/clonado en el VPS (ej. `/opt/sis-agro`).
+- El proyecto clonado en el VPS (ej. `/opt/sis-agro`).
+
+```bash
+git clone <url-del-repo> /opt/sis-agro
+cd /opt/sis-agro
+```
+
+`bd/*.sql` está en `.gitignore` (no se sube al repo), así que hay que copiar
+`produccion.sql` aparte, desde tu máquina local:
+
+```bash
+scp bd/produccion.sql usuario@vps:/opt/sis-agro/bd/produccion.sql
+```
 
 ## 2. Configurar variables de entorno
 
 ```bash
 cp .env.example .env
-nano .env   # completar DB_ROOT_PASSWORD, DB_USER, DB_PASSWORD, JWT_SECRET
+nano .env   # completar DB_ROOT_PASSWORD, DB_USER, DB_PASSWORD, JWT_SECRET,
+            # BANCO_ECONOMICO_* y PERSONAS_API_* (mismos valores reales que
+            # tienes en backend/.env local)
 ```
 
 Usa contraseñas y un `JWT_SECRET` distintos a los de desarrollo. `DOMAIN` ya
@@ -36,7 +50,7 @@ En arranques posteriores el volumen ya existe y **no** se vuelve a importar.
 
 ## 4. Conectar el proxy reverso existente
 
-Apunta `samagro.rusoft.dev` a `http://127.0.0.1:8080` (el contenedor `frontend`,
+Apunta `samagro.rusoft.dev` a `http://127.0.0.1:8083` (el contenedor `frontend`,
 que sirve la SPA y reenvía internamente `/api` y `/uploads` al backend).
 Ejemplo si el proxy es nginx:
 
@@ -47,7 +61,7 @@ server {
     # ... certificados ya gestionados por tu proxy (certbot, etc.) ...
 
     location / {
-        proxy_pass http://127.0.0.1:8080;
+        proxy_pass http://127.0.0.1:8083;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;

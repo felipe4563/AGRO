@@ -56,7 +56,7 @@ services:
     ports:
       # Solo expuesto en localhost del VPS — el proxy reverso existente
       # (nginx/Traefik) es el que atiende https://samagro.rusoft.dev y reenvía aquí.
-      - "127.0.0.1:8080:80"
+      - "127.0.0.1:8083:80"
     depends_on:
       - backend
 

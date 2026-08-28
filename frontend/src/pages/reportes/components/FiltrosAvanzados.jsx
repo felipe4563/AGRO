@@ -1,7 +1,9 @@
-export default function FiltrosAvanzados({ 
-  filtros, 
-  setFiltros, 
-  onBuscar, 
+import { useEffect, useRef } from 'react';
+
+export default function FiltrosAvanzados({
+  filtros,
+  setFiltros,
+  onBuscar,
   cargando,
   opciones = { fechas: true, clientes: false, productos: false, vendedores: false, proveedores: false, sucursales: false },
   catalogos = { clientes: [], productos: [], usuarios: [], proveedores: [], sucursales: [] }
@@ -11,10 +13,21 @@ export default function FiltrosAvanzados({
     setFiltros(prev => ({ ...prev, [name]: value }));
   };
 
-  const limpiar = () => {
-    setFiltros({});
-    // Dependiendo del padre, puede que necesite un onBuscar automático al limpiar
-  };
+  const limpiar = () => setFiltros({});
+
+  // Búsqueda automática: al cambiar cualquier filtro, se dispara sola tras
+  // una breve pausa (evita golpear la API en cada tecla/clic). El primer
+  // render se salta porque el padre ya busca al montar/cambiar de pestaña.
+  const primerRenderRef = useRef(true);
+  useEffect(() => {
+    if (primerRenderRef.current) {
+      primerRenderRef.current = false;
+      return;
+    }
+    const timer = setTimeout(() => onBuscar(), 450);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtros]);
 
   return (
     <div className="bg-white dark:bg-zinc-900 rounded-xl p-4 border border-zinc-200 dark:border-zinc-800 shadow-sm mb-4">
@@ -120,22 +133,22 @@ export default function FiltrosAvanzados({
           </div>
         )}
 
-        {/* Botones de acción ocupan su propia columna o se alinean al final */}
-        <div className="flex items-end gap-2 sm:col-span-2 md:col-span-1">
-          <button 
-            onClick={onBuscar}
-            disabled={cargando}
-            className="flex-1 bg-zinc-800 hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 text-white text-sm font-medium py-1.5 px-3 rounded-lg transition-colors flex items-center justify-center gap-2"
-          >
-            {cargando ? 'Buscando...' : 'Aplicar'}
-          </button>
-          <button 
+        {/* Los filtros se aplican solos al cambiarlos; solo queda el botón de limpiar */}
+        <div className="flex items-end gap-2">
+          <button
             onClick={limpiar}
-            className="px-3 py-1.5 text-sm text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
+            className="px-3 py-1.5 text-sm text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors flex items-center gap-1.5"
             title="Limpiar filtros"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+            <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+            Limpiar
           </button>
+          {cargando && (
+            <span className="flex items-center gap-1.5 text-xs text-zinc-400">
+              <svg className="animate-spin h-4 w-4 text-emerald-500" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+              Buscando...
+            </span>
+          )}
         </div>
 
       </div>

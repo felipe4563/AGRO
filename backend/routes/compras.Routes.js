@@ -4,6 +4,7 @@ const { authMiddleware, checkPermission } = require('../middlewares/authMiddlewa
 
 router.use(authMiddleware);
 
+router.get('/sucursales-destino', checkPermission('crear', 'compras'), ctrl.listarSucursalesDestino);
 router.get('/', checkPermission('ver', 'compras'), ctrl.listar);
 router.get('/:id', checkPermission('ver', 'compras'), ctrl.obtener);
 router.post('/', checkPermission('crear', 'compras'), ctrl.crear);

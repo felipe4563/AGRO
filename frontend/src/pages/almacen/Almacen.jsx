@@ -28,6 +28,8 @@ const TAB_LABELS = { inventario: 'Inventario', traslados: 'Traslados', alertas: 
 export default function Almacen() {
   const { puede } = usePermission();
 
+  const tabsVisibles = TABS.filter((t) => t !== 'traslados' || puede('trasladar', 'almacen'));
+
   const [tab, setTab] = useState('inventario');
   const [lotes, setLotes] = useState([]);
   const [traslados, setTraslados] = useState([]);
@@ -205,7 +207,7 @@ export default function Almacen() {
 
       {/* Tabs */}
       <div className="flex gap-1 mb-6 p-1 bg-zinc-100 dark:bg-zinc-800 rounded-xl w-fit">
-        {TABS.map(t => (
+        {tabsVisibles.map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}

@@ -9,6 +9,44 @@ import VistaGanancias from './vistas/VistaGanancias';
 import VistaSucursales from './vistas/VistaSucursales';
 import VistaCaja from './vistas/VistaCaja';
 
+const ICONOS_TAB = {
+  dashboard: (
+    <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.5V6a1.5 1.5 0 011.5-1.5h15A1.5 1.5 0 0121 6v7.5M3 13.5h18M3 13.5v4.5A1.5 1.5 0 004.5 19.5h15a1.5 1.5 0 001.5-1.5v-4.5M8 19.5v-3m8 3v-3" />
+    </svg>
+  ),
+  ganancias: (
+    <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 17l6-6 4 4 8-8m0 0h-5m5 0v5" />
+    </svg>
+  ),
+  ventas: (
+    <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 14l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+    </svg>
+  ),
+  compras: (
+    <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 1.999-4.706 2.62-7.201.128-.513-.26-1.01-.789-1.01H5.25M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
+    </svg>
+  ),
+  inventario: (
+    <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
+    </svg>
+  ),
+  sucursales: (
+    <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
+    </svg>
+  ),
+  caja: (
+    <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
+    </svg>
+  ),
+};
+
 export default function LayoutReportes() {
   const { puede } = usePermission();
 
@@ -17,49 +55,42 @@ export default function LayoutReportes() {
     {
       id: 'dashboard',
       label: 'Dashboard',
-      icono: '🖥️',
       component: <DashboardReportes />,
       visible: puede('ganancias', 'reportes')
     },
     {
       id: 'ganancias',
       label: 'Ganancias',
-      icono: '📈',
       component: <VistaGanancias />,
       visible: puede('ganancias', 'reportes') || puede('top_productos', 'reportes')
     },
     {
       id: 'ventas',
       label: 'Ventas',
-      icono: '🧾',
       component: <VistaVentas />,
       visible: puede('ventas_diarias', 'reportes') || puede('ventas_rango', 'reportes') || puede('ventas_vendedor', 'reportes') || puede('ventas_producto', 'reportes') || puede('ventas_cliente', 'reportes')
     },
     {
       id: 'compras',
       label: 'Compras',
-      icono: '🛒',
       component: <VistaCompras />,
       visible: puede('compras', 'reportes') || puede('compras_proveedor', 'reportes')
     },
     {
       id: 'inventario',
       label: 'Inventario',
-      icono: '📦',
       component: <VistaInventario />,
       visible: puede('inventario', 'reportes') || puede('inventario_valorizado', 'reportes') || puede('stock_bajo', 'reportes') || puede('vencimientos', 'reportes') || puede('kardex', 'reportes')
     },
     {
       id: 'sucursales',
       label: 'Sucursales',
-      icono: '🏢',
       component: <VistaSucursales />,
       visible: puede('traslados', 'reportes') || puede('comparativo_sucursales', 'reportes')
     },
     {
       id: 'caja',
       label: 'Caja',
-      icono: '🏧',
       component: <VistaCaja />,
       visible: puede('caja', 'reportes')
     }
@@ -90,8 +121,11 @@ export default function LayoutReportes() {
     <PageWrapper>
       <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-zinc-900 dark:text-white flex items-center gap-2 tracking-tight">
-            📊 Centro de Reportes ERP
+          <h1 className="text-2xl font-black text-zinc-900 dark:text-white flex items-center gap-2.5 tracking-tight">
+            <svg className="w-6 h-6 text-emerald-500 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.5V6a1.5 1.5 0 011.5-1.5h15A1.5 1.5 0 0121 6v7.5M3 13.5h18M3 13.5v4.5A1.5 1.5 0 004.5 19.5h15a1.5 1.5 0 001.5-1.5v-4.5M8 19.5v-3m8 3v-3" />
+            </svg>
+            Centro de Reportes ERP
           </h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
             Analíticas avanzadas y exportación de documentos (PDF/Excel).
@@ -112,7 +146,7 @@ export default function LayoutReportes() {
                   : 'border-transparent text-zinc-500 hover:text-zinc-800 hover:bg-zinc-100 dark:hover:text-zinc-300 dark:hover:bg-zinc-800/50'
               }`}
             >
-              <span className="text-base sm:text-lg">{tab.icono}</span>
+              {ICONOS_TAB[tab.id]}
               {tab.label}
             </button>
           ))}

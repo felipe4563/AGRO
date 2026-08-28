@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import PageWrapper from '../../components/PageWrapper';
 import TablaProductos from './components/TablaProductos';
 import { ModalCrearEditar, ModalEliminar, ModalImagen } from './components/ProductoModals';
@@ -35,6 +35,17 @@ export default function Productos() {
 
   const [modalType, setModalType] = useState(null);
   const [productoActivo, setProductoActivo] = useState(null);
+
+  const [filtroClasificacion, setFiltroClasificacion] = useState('');
+  const [filtroMarca, setFiltroMarca] = useState('');
+
+  const productosFiltrados = useMemo(() => {
+    return productos.filter((p) => {
+      if (filtroClasificacion && String(p.id_clasificacion) !== filtroClasificacion) return false;
+      if (filtroMarca && String(p.id_marca) !== filtroMarca) return false;
+      return true;
+    });
+  }, [productos, filtroClasificacion, filtroMarca]);
 
   const mostrarToast = (tipo, msg) => {
     setToast({ tipo, msg });
@@ -192,8 +203,39 @@ export default function Productos() {
         )}
       </div>
 
+      <div className="mb-4 flex flex-wrap gap-3">
+        <select
+          value={filtroClasificacion}
+          onChange={(e) => setFiltroClasificacion(e.target.value)}
+          className="px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
+        >
+          <option value="">Todas las categorías</option>
+          {clasificaciones.map((c) => (
+            <option key={c.id_clasificacion} value={c.id_clasificacion}>{c.nombre}</option>
+          ))}
+        </select>
+        <select
+          value={filtroMarca}
+          onChange={(e) => setFiltroMarca(e.target.value)}
+          className="px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
+        >
+          <option value="">Todas las marcas</option>
+          {marcas.map((m) => (
+            <option key={m.id_marca} value={m.id_marca}>{m.nombre}</option>
+          ))}
+        </select>
+        {(filtroClasificacion || filtroMarca) && (
+          <button
+            onClick={() => { setFiltroClasificacion(''); setFiltroMarca(''); }}
+            className="px-3 py-2 text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-white"
+          >
+            Limpiar filtros
+          </button>
+        )}
+      </div>
+
       <TablaProductos
-        productos={productos}
+        productos={productosFiltrados}
         cargando={cargando}
         onEditar={handleEditar}
         onEliminar={handleEliminar}

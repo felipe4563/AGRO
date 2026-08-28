@@ -136,10 +136,11 @@ export default function VistaGanancias() {
         ))}
       </div>
 
-      {cargando ? (
-        <div className="p-12 text-center text-zinc-500">Cargando métricas...</div>
-      ) : (
-        <>
+      {/* El contenido queda siempre montado; cada sección (FiltrosAvanzados,
+          TablaReporte) muestra su propio indicador de "cargando" en su lugar
+          — reemplazar todo el árbol por un spinner en cada búsqueda causaba
+          parpadeo y que los gráficos se remontaran sin medir bien su tamaño. */}
+      <>
           {/* ── RESUMEN FINANCIERO ── */}
           {activeTab === 'generales' && (
             <div className="space-y-4 animate-fade-in">
@@ -360,8 +361,7 @@ export default function VistaGanancias() {
               </div>
             </div>
           )}
-        </>
-      )}
+      </>
     </div>
   );
 }

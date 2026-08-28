@@ -4,18 +4,22 @@ import PageWrapper from '../../components/PageWrapper';
 import compraService from '../../services/compra.service';
 import proveedorService from '../../services/proveedor.service';
 import productoService from '../../services/producto.service';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function NuevaCompra() {
   const navigate = useNavigate();
+  const { usuario } = useAuth();
 
   const [proveedores, setProveedores] = useState([]);
   const [productos, setProductos] = useState([]);
+  const [sucursales, setSucursales] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState(null);
 
   // Cabecera
   const [idProveedor, setIdProveedor] = useState('');
+  const [idSucursalDestino, setIdSucursalDestino] = useState('');
   const [nroFactura, setNroFactura] = useState('');
   const [fechaCompra, setFechaCompra] = useState(new Date().toISOString().split('T')[0]);
   const [observaciones, setObservaciones] = useState('');
@@ -60,12 +64,15 @@ export default function NuevaCompra() {
 
   const cargarCatalogos = async () => {
     try {
-      const [provRes, prodRes] = await Promise.all([
+      const [provRes, prodRes, sucRes] = await Promise.all([
         proveedorService.listar(),
-        productoService.listar()
+        productoService.listar(),
+        compraService.listarSucursalesDestino()
       ]);
       setProveedores(provRes.data.filter(p => p.activo === 1));
       setProductos(prodRes.data.filter(p => p.activo === 1));
+      setSucursales(sucRes.data);
+      setIdSucursalDestino(String(usuario?.id_sucursal || ''));
     } catch (err) {
       setError('Error al cargar catálogos. Intente recargar.');
     } finally {
@@ -132,6 +139,7 @@ export default function NuevaCompra() {
     try {
       const payload = {
         id_proveedor: idProveedor,
+        id_sucursal: idSucursalDestino,
         nro_factura: nroFactura,
         fecha_compra: fechaCompra,
         metodo_pago: metodoPago,
@@ -194,6 +202,20 @@ export default function NuevaCompra() {
                   <option key={p.id_proveedor} value={p.id_proveedor}>{p.empresa}</option>
                 ))}
               </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1">Sucursal destino *</label>
+              <select
+                value={idSucursalDestino}
+                onChange={(e) => setIdSucursalDestino(e.target.value)}
+                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-emerald-500/50 outline-none"
+              >
+                {sucursales.map(s => (
+                  <option key={s.id_sucursal} value={s.id_sucursal}>{s.nombre}</option>
+                ))}
+              </select>
+              <p className="text-xs text-zinc-400 mt-1">A dónde entra el stock (ej. almacén central antes de distribuir).</p>
             </div>
 
             <div>

@@ -16,11 +16,18 @@ export default function DashboardReportes() {
   const [vencimientos, setVencimientos] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [exportando, setExportando] = useState(false);
+  // Recharts mide el contenedor del gráfico en el mismo tick del montaje,
+  // antes de que el navegador termine de calcular su tamaño real (por eso
+  // el warning "width(-1) height(-1)" en consola). Esperar un frame antes
+  // de montar el <ResponsiveContainer> evita esa medición prematura.
+  const [listoParaGrafico, setListoParaGrafico] = useState(false);
 
   const dashboardRef = useRef(null);
 
   useEffect(() => {
     cargarReportes();
+    const frame = requestAnimationFrame(() => setListoParaGrafico(true));
+    return () => cancelAnimationFrame(frame);
   }, []);
 
   const cargarReportes = async () => {
@@ -109,8 +116,11 @@ export default function DashboardReportes() {
     <PageWrapper>
       <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-zinc-900 dark:text-white flex items-center gap-2">
-            📈 Dashboard Gerencial
+          <h1 className="text-2xl font-bold text-zinc-900 dark:text-white flex items-center gap-2.5">
+            <svg className="w-6 h-6 text-emerald-500 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 17l6-6 4 4 8-8m0 0h-5m5 0v5" />
+            </svg>
+            Dashboard Gerencial
           </h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
             Resumen en tiempo real de las operaciones y estado del almacén.
@@ -173,11 +183,16 @@ export default function DashboardReportes() {
           {/* Gráfico Top 5 */}
           <div className="min-w-0 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm p-6">
             <h3 className="font-bold text-lg text-zinc-900 dark:text-white mb-6 flex items-center gap-2">
-              🏆 Top 5 Productos Más Vendidos
+              <svg className="w-5 h-5 text-amber-500 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 013 3h-15a3 3 0 013-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 01-.982-3.172M9.497 14.25a7.454 7.454 0 00.981-3.172M5.25 4.236c-.982.143-1.954.317-2.916.52A6.003 6.003 0 007.73 9.728M5.25 4.236V4.5c0 2.108.966 3.99 2.48 5.228M5.25 4.236V2.721C7.456 2.41 9.71 2.25 12 2.25c2.291 0 4.545.16 6.75.47v1.516M7.73 9.728a6.726 6.726 0 002.748 1.35m8.272-6.842V4.5c0 2.108-.966 3.99-2.48 5.228m2.48-5.492a46.32 46.32 0 012.916.52 6.003 6.003 0 01-5.395 4.972m0 0a6.726 6.726 0 01-2.749 1.35m0 0a6.772 6.772 0 01-3.044 0" />
+              </svg>
+              Top 5 Productos Más Vendidos
             </h3>
             
             {topProductos.length === 0 ? (
               <div className="h-64 flex items-center justify-center text-zinc-400">No hay datos de ventas suficientes</div>
+            ) : !listoParaGrafico ? (
+              <div className="h-72" />
             ) : (
               <div className="h-72">
                 <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={200}>
@@ -205,15 +220,21 @@ export default function DashboardReportes() {
           <div className="min-w-0 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden flex flex-col">
             <div className="p-6 border-b border-zinc-200 dark:border-zinc-800 shrink-0">
               <h3 className="font-bold text-lg text-red-600 dark:text-red-400 flex items-center gap-2">
-                ⚠️ Alertas de Vencimiento (Próximos 30 días)
+                <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                </svg>
+                Alertas de Vencimiento (Próximos 30 días)
               </h3>
               <p className="text-xs text-zinc-500 mt-1">Lotes que requieren acción inmediata para evitar mermas.</p>
             </div>
             
             <div className="overflow-y-auto flex-1 max-h-[300px]">
               {vencimientos.length === 0 ? (
-                <div className="h-full flex items-center justify-center text-emerald-600 dark:text-emerald-400 font-medium py-8">
-                  ✅ Todo el inventario está vigente.
+                <div className="h-full flex items-center justify-center gap-2 text-emerald-600 dark:text-emerald-400 font-medium py-8">
+                  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Todo el inventario está vigente.
                 </div>
               ) : (
                 <table className="w-full text-left text-sm">

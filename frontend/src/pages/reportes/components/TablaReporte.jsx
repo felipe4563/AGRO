@@ -18,35 +18,54 @@ export default function TablaReporte({ columnas, datos, cargando }) {
   }
 
   return (
-    <div className="overflow-x-auto w-full">
-      <table className="w-full text-left text-sm whitespace-nowrap">
-        <thead>
-          <tr className="bg-zinc-50 dark:bg-zinc-800/50 border-b border-zinc-200 dark:border-zinc-800">
-            {columnas.map((col, idx) => (
-              <th 
-                key={idx} 
-                className={`px-4 py-3 font-semibold text-zinc-600 dark:text-zinc-300 ${col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'}`}
-              >
-                {col.header}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-          {datos.map((fila, filaIdx) => (
-            <tr key={filaIdx} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors">
-              {columnas.map((col, colIdx) => (
-                <td 
-                  key={colIdx} 
-                  className={`px-4 py-3 text-zinc-900 dark:text-zinc-100 ${col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'}`}
-                >
+    <>
+      {/* ── Móvil: tarjetas apiladas ── */}
+      <div className="sm:hidden divide-y divide-zinc-200 dark:divide-zinc-800">
+        {datos.map((fila, filaIdx) => (
+          <div key={filaIdx} className="p-4 space-y-1.5">
+            {columnas.map((col, colIdx) => (
+              <div key={colIdx} className="flex items-start justify-between gap-3 text-sm">
+                <span className="text-zinc-500 dark:text-zinc-400 shrink-0">{col.header}</span>
+                <span className="text-zinc-900 dark:text-zinc-100 text-right font-medium">
                   {col.render ? col.render(fila[col.key], fila) : fila[col.key]}
-                </td>
+                </span>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+
+      {/* ── Tablet / escritorio: tabla ── */}
+      <div className="hidden sm:block overflow-x-auto w-full">
+        <table className="w-full text-left text-sm whitespace-nowrap">
+          <thead>
+            <tr className="bg-zinc-50 dark:bg-zinc-800/50 border-b border-zinc-200 dark:border-zinc-800">
+              {columnas.map((col, idx) => (
+                <th
+                  key={idx}
+                  className={`px-4 py-3 font-semibold text-zinc-600 dark:text-zinc-300 ${col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'}`}
+                >
+                  {col.header}
+                </th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
+            {datos.map((fila, filaIdx) => (
+              <tr key={filaIdx} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors">
+                {columnas.map((col, colIdx) => (
+                  <td
+                    key={colIdx}
+                    className={`px-4 py-3 text-zinc-900 dark:text-zinc-100 ${col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'}`}
+                  >
+                    {col.render ? col.render(fila[col.key], fila) : fila[col.key]}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }

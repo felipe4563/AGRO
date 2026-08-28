@@ -213,7 +213,9 @@ const generarCodigoBarras = async (req, res) => {
       return res.json({ codigo_barras: rows[0].codigo_barras, generado: false });
     }
 
-    const codigo = `SA${String(idProductoNum).padStart(8, '0')}`;
+    // Códigos internos arrancan en 900000 — puramente numérico (mejor compatibilidad
+    // con lectores) y en un rango que no choca con códigos de fábrica reales (EAN-13).
+    const codigo = String(900000 + idProductoNum);
     await db.promise().query('UPDATE producto SET codigo_barras = ? WHERE id_producto = ?', [codigo, idProductoNum]);
 
     return res.json({ codigo_barras: codigo, generado: true });

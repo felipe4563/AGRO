@@ -3,9 +3,9 @@ import JsBarcode from 'jsbarcode';
 
 // Alto y grosor de las barras del código. Editar estos valores para
 // probar distintos tamaños — el código ocupa casi toda la etiqueta.
-export const BARCODE_HEIGHT_MM = 16;
-export const BARCODE_BAR_WIDTH = 1.6;
-export const BARCODE_FONT_SIZE = 11;
+export const BARCODE_HEIGHT_MM = 13;
+export const BARCODE_BAR_WIDTH = 1.1;
+export const BARCODE_FONT_SIZE = 9;
 
 // Etiqueta física de 30mm x 20mm: solo código de barras + su número.
 export default function EtiquetaBarcode({ codigoBarras }) {
@@ -45,7 +45,7 @@ export default function EtiquetaBarcode({ codigoBarras }) {
         color: '#000',
       }}
     >
-      <svg ref={svgRef} style={{ width: '100%', maxHeight: '18mm' }} />
+      <svg ref={svgRef} style={{ width: '100%', minWidth: 0, maxWidth: '100%', maxHeight: '18mm' }} />
     </div>
   );
 }

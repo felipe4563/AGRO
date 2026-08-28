@@ -51,13 +51,31 @@ const obtener = async (req, res) => {
   }
 };
 
+// Sucursales activas para elegir a dónde va el stock de una compra (ej.
+// negocios que reciben todo en un almacén central y luego distribuyen).
+// Permiso 'crear compras' en vez de 'sucursales.ver' para no requerir
+// acceso al módulo completo de Sucursales solo para esto.
+const listarSucursalesDestino = async (req, res) => {
+  try {
+    const [rows] = await db.promise().query(
+      'SELECT id_sucursal, nombre FROM sucursal WHERE activo = 1 ORDER BY nombre ASC'
+    );
+    return res.json(rows);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: mensajeSeguro(err, 'Error al obtener sucursales') });
+  }
+};
+
 // Crear nueva compra (Transacción)
 const METODOS_PAGO = ['EFECTIVO', 'TRANSFERENCIA', 'QR', 'OTRO'];
 
 const crear = async (req, res) => {
   const { id_proveedor, nro_factura, fecha_compra, subtotal, descuento, total, metodo_pago, observaciones, detalles } = req.body;
   const id_usuario = req.user.id_usuario;
-  const id_sucursal = req.user.id_sucursal; // Sucursal del usuario actual
+  // Sucursal destino del stock: la que elija quien registra la compra,
+  // o la propia del usuario si no especifica ninguna.
+  const id_sucursal = req.body.id_sucursal || req.user.id_sucursal;
   const metodoPagoNorm = METODOS_PAGO.includes(metodo_pago) ? metodo_pago : 'EFECTIVO';
 
   if (!id_proveedor || !detalles || detalles.length === 0) {
@@ -205,5 +223,6 @@ module.exports = {
   obtener,
   crear,
   confirmar,
-  anular
+  anular,
+  listarSucursalesDestino
 };

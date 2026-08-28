@@ -5,7 +5,8 @@ const compraService = {
   obtener:   (id) => api.get(`/compras/${id}`),
   crear:     (data) => api.post('/compras', data),
   confirmar: (id) => api.post(`/compras/${id}/confirmar`),
-  anular:    (id) => api.patch(`/compras/${id}/anular`)
+  anular:    (id) => api.patch(`/compras/${id}/anular`),
+  listarSucursalesDestino: () => api.get('/compras/sucursales-destino')
 };
 
 export default compraService;
