@@ -1,0 +1,9 @@
+node_modules/
+.env
+.env.local
+.env.production
+backend/uploads/
+backend/backups/
+frontend/dist/
+*.log
+*.sql

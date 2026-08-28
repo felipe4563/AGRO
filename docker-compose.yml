@@ -1,0 +1,66 @@
+services:
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      TZ: America/La_Paz
+    volumes:
+      - mysql_data:/var/lib/mysql
+      # Solo se ejecuta la primera vez que el volumen está vacío.
+      - ./bd/produccion.sql:/docker-entrypoint-initdb.d/1-produccion.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${DB_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      PORT: 3000
+      JWT_SECRET: ${JWT_SECRET}
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      ALLOWED_ORIGINS: https://${DOMAIN}
+      BASE_URL: https://${DOMAIN}
+      TZ: America/La_Paz
+      BANCO_ECONOMICO_BASE_URL: ${BANCO_ECONOMICO_BASE_URL}
+      BANCO_ECONOMICO_USER: ${BANCO_ECONOMICO_USER}
+      BANCO_ECONOMICO_PASSWORD: ${BANCO_ECONOMICO_PASSWORD}
+      BANCO_ECONOMICO_AES_KEY: ${BANCO_ECONOMICO_AES_KEY}
+      BANCO_ECONOMICO_ACCOUNT_CREDIT: ${BANCO_ECONOMICO_ACCOUNT_CREDIT}
+      PERSONAS_API_BASE_URL: ${PERSONAS_API_BASE_URL}
+      PERSONAS_API_USER: ${PERSONAS_API_USER}
+      PERSONAS_API_PASSWORD: ${PERSONAS_API_PASSWORD}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      - backend_uploads:/app/uploads
+      - backend_backups:/app/backups
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: /api
+    restart: unless-stopped
+    ports:
+      # Solo expuesto en localhost del VPS — el proxy reverso existente
+      # (nginx/Traefik) es el que atiende https://samagro.rusoft.dev y reenvía aquí.
+      - "127.0.0.1:8080:80"
+    depends_on:
+      - backend
+
+volumes:
+  mysql_data:
+  backend_uploads:
+  backend_backups:
