@@ -133,7 +133,13 @@ export default function VistaCompras() {
           )}
         </div>
         
-        <BotonesExportar datos={datos} columnas={getColumnas()} titulo={`Reporte_Compras_${tituloActual.replace(/\s+/g, '_')}`} />
+        <BotonesExportar 
+          datos={datos} 
+          columnas={getColumnas()} 
+          titulo={`Reporte_Compras_${tituloActual.replace(/\s+/g, '_')}`}
+          resumen={resumen}
+          subtitulo={`Filtros aplicados: ${filtros.fechaInicio ? `Desde ${filtros.fechaInicio} Hasta ${filtros.fechaFin}` : 'Todos los tiempos'} ${filtros.id_proveedor ? '| Proveedor: Específico' : ''}`}
+        />
       </div>
 
       <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm">

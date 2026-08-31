@@ -12,7 +12,8 @@ function Modal({ titulo, onClose, children }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
       <div onClick={onClose}
            className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-      <div className="relative w-full max-w-md bg-white dark:bg-zinc-900
+      <div className="relative w-full max-w-md max-h-[90vh] overflow-y-auto
+                      bg-white dark:bg-zinc-900
                       rounded-2xl shadow-2xl border border-zinc-200
                       dark:border-zinc-700 p-6 transition-colors duration-300">
         <div className="flex items-center justify-between mb-5">
@@ -99,7 +100,7 @@ function BotonesAccion({ onCancel, onConfirm, guardando,
 // ── Modal Crear ───────────────────────────────────────────────────────────
 export function ModalCrear({ nombre, setNombre, onConfirm, onClose, guardando }) {
   return (
-    <Modal titulo="➕ Nuevo Rol" onClose={onClose}>
+    <Modal titulo="Nuevo Rol" onClose={onClose}>
       <div className="space-y-4">
         <InputNombre
           value={nombre}
@@ -121,7 +122,7 @@ export function ModalCrear({ nombre, setNombre, onConfirm, onClose, guardando })
 // ── Modal Editar ──────────────────────────────────────────────────────────
 export function ModalEditar({ nombre, setNombre, onConfirm, onClose, guardando }) {
   return (
-    <Modal titulo="✏️ Renombrar Rol" onClose={onClose}>
+    <Modal titulo="Renombrar Rol" onClose={onClose}>
       <div className="space-y-4">
         <InputNombre
           value={nombre}
@@ -142,12 +143,11 @@ export function ModalEditar({ nombre, setNombre, onConfirm, onClose, guardando }
 // ── Modal Eliminar ────────────────────────────────────────────────────────
 export function ModalEliminar({ rol, onConfirm, onClose, guardando }) {
   return (
-    <Modal titulo="🗑 Eliminar Rol" onClose={onClose}>
+    <Modal titulo="Eliminar Rol" onClose={onClose}>
       <div className="space-y-4">
         <div className="flex items-start gap-3 p-4 rounded-xl
                         bg-red-50 dark:bg-red-500/10
                         border border-red-200 dark:border-red-500/20">
-          <span className="text-xl shrink-0">⚠️</span>
           <div>
             <p className="text-sm font-semibold text-red-700 dark:text-red-400">
               ¿Eliminar el rol "{rol?.nombre}"?
@@ -162,7 +162,7 @@ export function ModalEliminar({ rol, onConfirm, onClose, guardando }) {
           onCancel={onClose}
           onConfirm={onConfirm}
           guardando={guardando}
-          labelConfirm="🗑 Eliminar"
+          labelConfirm="Eliminar"
           danger
         />
       </div>

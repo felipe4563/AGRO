@@ -189,7 +189,7 @@ const obtenerReporteCompras = async (req, res) => {
 // MÓDULO DE INVENTARIO
 // ==========================================
 const obtenerReporteInventario = async (req, res) => {
-  const { id_producto } = req.query;
+  const { id_producto, id_marca, id_clasificacion } = req.query;
   const tipo = req.params.tipo || req.query.tipo;
   const sucursalId = req.user?.id_sucursal;
 
@@ -198,6 +198,39 @@ const obtenerReporteInventario = async (req, res) => {
     let params = [];
 
     switch (tipo) {
+      case 'global': {
+        // Reporte comparativo entre TODAS las sucursales por diseño: no se filtra por sucursal aquí.
+        let filtroProductoClause = '';
+        if (id_producto)      { filtroProductoClause += ' AND p.id_producto = ?';      params.push(id_producto); }
+        if (id_marca)         { filtroProductoClause += ' AND p.id_marca = ?';         params.push(id_marca); }
+        if (id_clasificacion) { filtroProductoClause += ' AND p.id_clasificacion = ?'; params.push(id_clasificacion); }
+
+        query = `
+          SELECT
+            p.id_producto,
+            p.nombre,
+            p.codigo_barras,
+            c.nombre as categoria,
+            SUM(stock_por_suc.total_sucursal) as stock_total_unidades,
+            CONCAT('[', GROUP_CONCAT(
+              JSON_OBJECT('id_sucursal', stock_por_suc.id_sucursal, 'sucursal_nombre', stock_por_suc.sucursal_nombre, 'stock', stock_por_suc.total_sucursal)
+            ), ']') as detalle_sucursales
+          FROM producto p
+          LEFT JOIN clasificacion_producto c ON p.id_clasificacion = c.id_clasificacion
+          JOIN (
+            SELECT id_producto, s.id_sucursal, s.nombre as sucursal_nombre, SUM(stock_unidades) as total_sucursal
+            FROM lote l
+            JOIN sucursal s ON l.id_sucursal = s.id_sucursal
+            WHERE l.activo = 1 AND l.stock_unidades > 0
+            GROUP BY id_producto, s.id_sucursal
+          ) stock_por_suc ON p.id_producto = stock_por_suc.id_producto
+          WHERE 1=1 ${filtroProductoClause}
+          GROUP BY p.id_producto, p.nombre, p.codigo_barras, c.nombre
+          ORDER BY p.nombre ASC
+        `;
+        break;
+      }
+
       case 'actual':
       case 'valorizado':
         query = `
@@ -268,6 +301,8 @@ const obtenerReporteInventario = async (req, res) => {
     let resumen = { total_registros: rows.length };
     if (tipo === 'valorizado') {
       resumen.valor_total = rows.reduce((acc, r) => acc + parseFloat(r.costo_total_estimado || 0), 0);
+    } else if (tipo === 'global') {
+      resumen.unidades_total = rows.reduce((acc, r) => acc + parseFloat(r.stock_total_unidades || 0), 0);
     }
 
     return res.json({ data: rows, resumen });
@@ -331,9 +366,18 @@ const obtenerResumenFinanciero = async (req, res) => {
 };
 
 const obtenerTopProductos = async (req, res) => {
-  const { id_sucursal, ordenar_por } = req.query;
+  const { id_sucursal, ordenar_por, fechaInicio, fechaFin } = req.query;
   const sucursalId = id_sucursal || req.user?.id_sucursal;
   const orderColumn = ordenar_por === 'ingresos' ? 'ingresos_generados' : 'unidades_vendidas';
+
+  let fechaClause = '';
+  let fechaParams = [];
+  if (fechaInicio && fechaFin) {
+    fechaClause = 'AND DATE(v.fecha_venta) BETWEEN ? AND ?';
+    fechaParams = [fechaInicio, fechaFin];
+  } else {
+    fechaClause = 'AND MONTH(v.fecha_venta) = MONTH(CURDATE()) AND YEAR(v.fecha_venta) = YEAR(CURDATE())';
+  }
 
   try {
     const [rows] = await db.promise().query(`
@@ -344,10 +388,10 @@ const obtenerTopProductos = async (req, res) => {
       JOIN venta v ON d.id_venta = v.id_venta
       JOIN producto p ON d.id_producto = p.id_producto
       JOIN lote l ON d.id_lote = l.id_lote
-      WHERE v.estado = 'COMPLETADA' AND v.id_sucursal = ?
+      WHERE v.estado = 'COMPLETADA' AND v.id_sucursal = ? ${fechaClause}
       GROUP BY p.id_producto, p.nombre, p.codigo_barras
       ORDER BY ${orderColumn} DESC LIMIT 10
-    `, [sucursalId]);
+    `, [sucursalId, ...fechaParams]);
 
     return res.json(rows);
   } catch (err) {

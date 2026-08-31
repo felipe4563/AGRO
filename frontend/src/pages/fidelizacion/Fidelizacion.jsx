@@ -14,7 +14,6 @@ function Toast({ toast }) {
         ? 'bg-green-50 dark:bg-green-900/40 border-green-200 dark:border-green-700 text-green-800 dark:text-green-300'
         : 'bg-red-50 dark:bg-red-900/40 border-red-200 dark:border-red-700 text-red-800 dark:text-red-300'
     }`}>
-      <span className="shrink-0">{toast.tipo === 'ok' ? '✅' : '⚠️'}</span>
       <span className="break-words">{toast.msg}</span>
     </div>
   );
@@ -111,7 +110,7 @@ function TabCanjear({ recompensas, mostrarToast }) {
               <p className="font-semibold text-zinc-900 dark:text-white">{clienteSel.nombre} {clienteSel.apellido || ''}</p>
               <p className="text-xs text-zinc-500 dark:text-zinc-400">CI/NIT: {clienteSel.ci_nit || 'S/N'}</p>
             </div>
-            <p className="text-2xl font-black text-amber-600 dark:text-amber-400">⭐ {clienteSel.puntos_fidelidad}</p>
+            <p className="text-2xl font-black text-amber-600 dark:text-amber-400">{clienteSel.puntos_fidelidad}</p>
           </div>
 
           <h3 className="text-sm font-bold text-zinc-900 dark:text-white mb-2">Catálogo de recompensas (Producto/Combo)</h3>
@@ -122,9 +121,9 @@ function TabCanjear({ recompensas, mostrarToast }) {
             {recompensas.filter((r) => r.activo && r.tipo === 'PRODUCTO').map((r) => (
               <div key={r.id_recompensa} className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-3">
                 <p className="font-semibold text-sm text-zinc-900 dark:text-white">{r.nombre}</p>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">🎁 {r.producto_nombre || r.combo_nombre}</p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">{r.producto_nombre || r.combo_nombre}</p>
                 <div className="mt-2 flex items-center justify-between">
-                  <span className="text-sm font-bold text-amber-600 dark:text-amber-400">⭐ {r.costo_puntos}</span>
+                  <span className="text-sm font-bold text-amber-600 dark:text-amber-400">{r.costo_puntos}</span>
                   {puede('canjear', 'fidelizacion') && (
                     <button
                       onClick={() => canjear(r)}
@@ -274,10 +273,10 @@ function TabRecompensas({ recompensas, recargar, mostrarToast }) {
             <label className="text-xs text-zinc-500 mb-1 block">Tipo de recompensa</label>
             <div className="grid grid-cols-2 gap-2 mb-3">
               <button onClick={() => setTipo('PRODUCTO')} className={`py-2 rounded-lg text-sm font-medium border ${tipo === 'PRODUCTO' ? 'bg-emerald-600 border-emerald-600 text-white' : 'border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300'}`}>
-                🎁 Producto/Combo
+                Producto/Combo
               </button>
               <button onClick={() => setTipo('DESCUENTO')} className={`py-2 rounded-lg text-sm font-medium border ${tipo === 'DESCUENTO' ? 'bg-emerald-600 border-emerald-600 text-white' : 'border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300'}`}>
-                💸 Descuento
+                Descuento
               </button>
             </div>
 
@@ -331,10 +330,10 @@ function TabRecompensas({ recompensas, recargar, mostrarToast }) {
             {r.descripcion && <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{r.descripcion}</p>}
             <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
               {r.tipo === 'PRODUCTO'
-                ? `🎁 ${r.producto_nombre || r.combo_nombre}`
-                : `💸 ${r.tipo_descuento === 'PCT' ? `${r.valor_descuento}%` : `Bs ${r.valor_descuento}`} de descuento`}
+                ? `${r.producto_nombre || r.combo_nombre}`
+                : `${r.tipo_descuento === 'PCT' ? `${r.valor_descuento}%` : `Bs ${r.valor_descuento}`} de descuento`}
             </p>
-            <p className="mt-3 text-lg font-bold text-amber-600 dark:text-amber-400">⭐ {r.costo_puntos} pts</p>
+            <p className="mt-3 text-lg font-bold text-amber-600 dark:text-amber-400">{r.costo_puntos} pts</p>
             {puede('gestionar_recompensas', 'fidelizacion') && (
               <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-end gap-2">
                 <button onClick={() => toggleActivo(r)} className="text-xs px-2 py-1 rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800">
@@ -443,11 +442,11 @@ export default function Fidelizacion() {
       <Toast toast={toast} />
 
       <div className="mb-6">
-        <h1 className="text-xl font-bold text-zinc-900 dark:text-white flex items-center gap-2">⭐ Fidelización</h1>
+        <h1 className="text-xl font-bold text-zinc-900 dark:text-white flex items-center gap-2">Fidelización</h1>
         <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Puntos por compras y canje de recompensas.</p>
       </div>
 
-      <div className="mb-4 inline-flex rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-1">
+      <div className="mb-4 inline-flex flex-wrap rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-1">
         {tabs.map((t) => (
           <button
             key={t.id}

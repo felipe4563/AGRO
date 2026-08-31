@@ -188,6 +188,8 @@ export default function VistaVentas() {
           datos={datos} 
           columnas={getColumnas()} 
           titulo={`Reporte_Ventas_${tituloActual.replace(/\s+/g, '_')}`}
+          resumen={resumen}
+          subtitulo={`Filtros aplicados: ${filtros.fechaInicio ? `Desde ${filtros.fechaInicio} Hasta ${filtros.fechaFin}` : 'Todos los tiempos'} ${filtros.id_vendedor ? '| Vendedor: Específico' : ''} ${filtros.id_cliente ? '| Cliente: Específico' : ''} ${filtros.id_producto ? '| Producto: Específico' : ''}`}
         />
       </div>
 

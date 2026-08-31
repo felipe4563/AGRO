@@ -18,14 +18,13 @@ const almacenRoutes     = require('./routes/almacen.Routes');
 const ventasRoutes      = require('./routes/ventas.Routes');
 const cajaRoutes        = require('./routes/caja.Routes');
 const reportesRoutes    = require('./routes/reportes.Routes');
-const backupRoutes      = require('./routes/backup.Routes');
 const cobrosRoutes      = require('./routes/cobros.Routes');
+const cuentasPagarRoutes = require('./routes/cuentasPagar.Routes');
 const combosRoutes      = require('./routes/combos.Routes');
 const promocionesRoutes = require('./routes/promociones.Routes');
 const fidelizacionRoutes = require('./routes/fidelizacion.Routes');
 const configuracionRoutes = require('./routes/configuracion.Routes');
 const perfilRoutes = require('./routes/perfil.Routes');
-const { iniciarScheduler } = require('./services/backup.service');
 const app = express();
 
 // ── CORS ──────────────────────────────────────────────────────────────────
@@ -66,8 +65,8 @@ app.use('/api/almacen', almacenRoutes);
 app.use('/api/ventas', ventasRoutes);
 app.use('/api/caja', cajaRoutes);
 app.use('/api/reportes', reportesRoutes);
-app.use('/api/backups',  backupRoutes);
 app.use('/api/cobros',   cobrosRoutes);
+app.use('/api/cuentas-pagar', cuentasPagarRoutes);
 app.use('/api/combos',   combosRoutes);
 app.use('/api/promociones', promocionesRoutes);
 app.use('/api/fidelizacion', fidelizacionRoutes);
@@ -80,7 +79,6 @@ if (process.env.NODE_ENV !== 'test') {
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`✅ Conectado a la base de datos MySQL`);
     console.log(`🚀 Servidor escuchando en puerto ${PORT}`);
-    iniciarScheduler();
   });
 }
 

@@ -70,22 +70,26 @@ export default function TablaTraslados({ traslados, cargando, onConfirmar, onCan
                   {t.usuario_nombre && <p>por {t.usuario_nombre}</p>}
                 </td>
                 <td className="px-4 py-3 text-right">
-                  {t.estado === 'PENDIENTE' && puede('trasladar', 'almacen') && (
+                  {t.estado === 'PENDIENTE' && (puede('confirmar', 'traslados') || puede('cancelar', 'traslados')) && (
                     <div className="flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => onConfirmar(t)}
-                        className="px-2.5 py-1 text-xs font-medium text-emerald-700 bg-emerald-100 hover:bg-emerald-200 dark:text-emerald-300 dark:bg-emerald-900/30 dark:hover:bg-emerald-900/50 border border-emerald-200 dark:border-emerald-700 rounded-lg transition-colors"
-                        title="Confirmar traslado"
-                      >
-                        Confirmar
-                      </button>
-                      <button
-                        onClick={() => onCancelar(t)}
-                        className="px-2.5 py-1 text-xs font-medium text-red-700 bg-red-100 hover:bg-red-200 dark:text-red-300 dark:bg-red-900/30 dark:hover:bg-red-900/50 border border-red-200 dark:border-red-700 rounded-lg transition-colors"
-                        title="Cancelar traslado"
-                      >
-                        Cancelar
-                      </button>
+                      {puede('confirmar', 'traslados') && (
+                        <button
+                          onClick={() => onConfirmar(t)}
+                          className="px-2.5 py-1 text-xs font-medium text-emerald-700 bg-emerald-100 hover:bg-emerald-200 dark:text-emerald-300 dark:bg-emerald-900/30 dark:hover:bg-emerald-900/50 border border-emerald-200 dark:border-emerald-700 rounded-lg transition-colors"
+                          title="Confirmar traslado"
+                        >
+                          Confirmar
+                        </button>
+                      )}
+                      {puede('cancelar', 'traslados') && (
+                        <button
+                          onClick={() => onCancelar(t)}
+                          className="px-2.5 py-1 text-xs font-medium text-red-700 bg-red-100 hover:bg-red-200 dark:text-red-300 dark:bg-red-900/30 dark:hover:bg-red-900/50 border border-red-200 dark:border-red-700 rounded-lg transition-colors"
+                          title="Cancelar traslado"
+                        >
+                          Cancelar
+                        </button>
+                      )}
                     </div>
                   )}
                 </td>

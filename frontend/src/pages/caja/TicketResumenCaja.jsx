@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import cajaService from '../../services/caja.service';
-import { imprimirConRawBT, centrar, fila, linea } from '../../utils/rawbt';
+import { imprimirConRawBTyLogo, centrar, fila, linea } from '../../utils/rawbt';
 import { useConfiguracion } from '../../contexts/ConfiguracionContext';
 
 const fmt = (n) => Number(n ?? 0).toFixed(2);
@@ -18,7 +18,7 @@ const METODO_LABEL = { EFECTIVO: 'Efectivo', QR: 'QR', TRANSFERENCIA: 'Transfere
 export default function TicketResumenCaja() {
   const { id }                     = useParams();
   const navigate                   = useNavigate();
-  const { nombreEmpresa, logoUrl } = useConfiguracion();
+  const { nombreEmpresa, logoUrl, tieneLogoPropio } = useConfiguracion();
   const [resumen, setResumen]      = useState(null);
   const [cargando, setCargando]    = useState(true);
 
@@ -111,13 +111,13 @@ export default function TicketResumenCaja() {
           onClick={() => window.print()}
           className="px-5 py-2 rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold text-sm transition-colors flex items-center gap-2"
         >
-          🖨️ Imprimir USB (80mm)
+          Imprimir USB (80mm)
         </button>
         <button
-          onClick={() => imprimirConRawBT(construirTexto())}
+          onClick={() => imprimirConRawBTyLogo(tieneLogoPropio ? logoUrl : null, construirTexto())}
           className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition-colors flex items-center gap-2"
         >
-          📶 Imprimir Bluetooth (RawBT)
+          Imprimir Bluetooth (RawBT)
         </button>
         <button
           onClick={() => navigate('/caja')}

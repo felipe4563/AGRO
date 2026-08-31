@@ -162,6 +162,12 @@ const cerrarCaja = async (req, res) => {
     }
     const turno = turnoRows[0];
 
+    // Cada cajero cierra su propio turno; 'cerrar_todas' habilita cerrar el
+    // de otro usuario (respaldo del Administrador si el cajero no está disponible).
+    if (turno.id_usuario !== req.user.id_usuario && !req.ability.can('cerrar_todas', 'caja')) {
+      return res.status(403).json({ error: 'Solo el cajero que abrió este turno puede cerrarlo' });
+    }
+
     const [ventasRows] = await db.promise().query(
       `SELECT COALESCE(SUM(total), 0) as total_efectivo
        FROM venta
@@ -392,10 +398,21 @@ const obtenerLibroCaja = async (req, res) => {
     const [rows] = await db.promise().query(
       `SELECT * FROM (
         SELECT v.fecha_venta AS fecha, 'INGRESO' AS tipo, 'VENTA' AS origen,
-               CONCAT('Venta #', v.id_venta) AS concepto, v.metodo_pago, v.total AS monto
+               CONCAT('Venta #', v.id_venta, IF(v.estado = 'ANULADA', ' (anulada)', '')) AS concepto,
+               v.metodo_pago, v.total AS monto
         FROM venta v
-        WHERE v.id_sucursal = ? AND v.estado = 'COMPLETADA' AND v.metodo_pago <> 'CREDITO'
+        WHERE v.id_sucursal = ? AND v.estado IN ('COMPLETADA', 'ANULADA') AND v.metodo_pago <> 'CREDITO'
               AND v.fecha_venta BETWEEN ? AND ?
+
+        UNION ALL
+
+        -- Reversión de efectivo al momento real en que se anuló la venta (no en la fecha de venta),
+        -- para que el Libro de Caja muestre el ciclo completo venta → anulación y el saldo cuadre.
+        SELECT v.fecha_anulacion AS fecha, 'EGRESO' AS tipo, 'ANULACION' AS origen,
+               CONCAT('Anulación de venta #', v.id_venta) AS concepto, v.metodo_pago, v.total AS monto
+        FROM venta v
+        WHERE v.id_sucursal = ? AND v.estado = 'ANULADA' AND v.metodo_pago <> 'CREDITO'
+              AND v.fecha_anulacion BETWEEN ? AND ?
 
         UNION ALL
 
@@ -426,6 +443,7 @@ const obtenerLibroCaja = async (req, res) => {
       WHERE (? IS NULL OR metodo_pago = ?) AND (? IS NULL OR tipo = ?)
       ORDER BY fecha ASC, origen ASC`,
       [
+        idSucursal, desdeFecha, hastaFecha,
         idSucursal, desdeFecha, hastaFecha,
         idSucursal, desdeFecha, hastaFecha,
         idSucursal, desdeFecha, hastaFecha,

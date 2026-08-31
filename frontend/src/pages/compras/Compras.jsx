@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import PageWrapper from '../../components/PageWrapper';
 import TablaCompras from './components/TablaCompras';
 import DetalleCompraModal from './components/DetalleCompraModal';
+import ModalImprimirEtiquetas from '../../components/ModalImprimirEtiquetas';
 import compraService from '../../services/compra.service';
 import { usePermission } from '../../hooks/usePermission';
 
@@ -14,7 +15,6 @@ function Toast({ toast }) {
         ? 'bg-green-50 dark:bg-green-900/40 border-green-200 dark:border-green-700 text-green-800 dark:text-green-300'
         : 'bg-red-50 dark:bg-red-900/40 border-red-200 dark:border-red-700 text-red-800 dark:text-red-300'
     }`}>
-      <span className="shrink-0">{toast.tipo === 'ok' ? '✅' : '⚠️'}</span>
       <span className="break-words">{toast.msg}</span>
     </div>
   );
@@ -29,6 +29,7 @@ export default function Compras() {
   const [toast, setToast] = useState(null);
 
   const [detalleId, setDetalleId] = useState(null);
+  const [lotesParaEtiquetas, setLotesParaEtiquetas] = useState(null);
 
   const mostrarToast = (tipo, msg) => {
     setToast({ tipo, msg });
@@ -61,9 +62,17 @@ export default function Compras() {
     }
     
     try {
-      await compraService.confirmar(compra.id_compra);
+      const res = await compraService.confirmar(compra.id_compra);
       mostrarToast('ok', 'Compra confirmada. Lotes ingresados al Almacén.');
       await cargarDatos();
+      if (res.data.lotes && res.data.lotes.length > 0) {
+        setLotesParaEtiquetas(res.data.lotes.map((l) => ({
+          id_lote: l.id_lote,
+          nombre: l.producto_nombre,
+          codigo_barras: l.codigo_barras,
+          cantidad: l.cantidad_cajas || 1,
+        })));
+      }
     } catch (err) {
       mostrarToast('error', err.response?.data?.error || 'Error al confirmar la compra');
     }
@@ -88,7 +97,7 @@ export default function Compras() {
       <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-zinc-900 dark:text-white flex items-center gap-2">
-            🛒 Compras e Ingresos
+            Compras e Ingresos
           </h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
             Historial de compras realizadas a proveedores.
@@ -119,6 +128,13 @@ export default function Compras() {
         <DetalleCompraModal
           compraId={detalleId}
           onClose={() => setDetalleId(null)}
+        />
+      )}
+
+      {lotesParaEtiquetas && (
+        <ModalImprimirEtiquetas
+          items={lotesParaEtiquetas}
+          onClose={() => setLotesParaEtiquetas(null)}
         />
       )}
 

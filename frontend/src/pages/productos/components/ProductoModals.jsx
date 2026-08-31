@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { usePermission } from '../../../hooks/usePermission';
 
 const API_BASE = import.meta.env.VITE_API_URL.replace('/api', '');
 
@@ -11,6 +12,10 @@ export function ModalCrearEditar({
   onClose,
   guardando
 }) {
+  const { puede } = usePermission();
+  const puedeVerPrecios = puede('ver_precios', 'productos');
+  const puedeEditarPrecios = puede('editar_precios', 'productos');
+  const puedeEditarDescuentos = puede('editar_descuentos', 'productos');
   const isEditing = !!producto;
   
   const [formData, setFormData] = useState({
@@ -160,47 +165,55 @@ export function ModalCrearEditar({
               </select>
             </div>
 
-            {/* Fila 3: Precios Mayor */}
-            <div className="bg-zinc-50 dark:bg-zinc-800/30 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 md:col-span-1 space-y-3">
-              <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Venta Mayor</p>
-              <div>
-                <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1">Precio (Bs) *</label>
-                <input
-                  type="number" step="0.01" min="0" required name="precio_mayor"
-                  value={formData.precio_mayor} onChange={handleChange}
-                  className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 outline-none"
-                />
+            {/* Fila 3: Precios Mayor — datos sensibles, requieren ver_precios */}
+            {puedeVerPrecios && (
+              <div className="bg-zinc-50 dark:bg-zinc-800/30 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 md:col-span-1 space-y-3">
+                <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Venta Mayor</p>
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1">Precio (Bs) *</label>
+                  <input
+                    type="number" step="0.01" min="0" required name="precio_mayor"
+                    value={formData.precio_mayor} onChange={handleChange}
+                    disabled={!puedeEditarPrecios}
+                    className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 outline-none disabled:opacity-60 disabled:cursor-not-allowed"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1">Descuento (%)</label>
+                  <input
+                    type="number" step="0.01" min="0" max="100" name="descuento_mayor"
+                    value={formData.descuento_mayor} onChange={handleChange}
+                    disabled={!puedeEditarDescuentos}
+                    className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 outline-none disabled:opacity-60 disabled:cursor-not-allowed"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1">Descuento (%)</label>
-                <input
-                  type="number" step="0.01" min="0" max="100" name="descuento_mayor"
-                  value={formData.descuento_mayor} onChange={handleChange}
-                  className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 outline-none"
-                />
-              </div>
-            </div>
+            )}
 
-            {/* Fila 3: Precios Menor */}
-            <div className="bg-zinc-50 dark:bg-zinc-800/30 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 md:col-span-1 space-y-3">
-              <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Venta Menor</p>
-              <div>
-                <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1">Precio (Bs) *</label>
-                <input
-                  type="number" step="0.01" min="0" required name="precio_menor"
-                  value={formData.precio_menor} onChange={handleChange}
-                  className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 outline-none"
-                />
+            {/* Fila 3: Precios Menor — datos sensibles, requieren ver_precios */}
+            {puedeVerPrecios && (
+              <div className="bg-zinc-50 dark:bg-zinc-800/30 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 md:col-span-1 space-y-3">
+                <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Venta Menor</p>
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1">Precio (Bs) *</label>
+                  <input
+                    type="number" step="0.01" min="0" required name="precio_menor"
+                    value={formData.precio_menor} onChange={handleChange}
+                    disabled={!puedeEditarPrecios}
+                    className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 outline-none disabled:opacity-60 disabled:cursor-not-allowed"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1">Descuento (%)</label>
+                  <input
+                    type="number" step="0.01" min="0" max="100" name="descuento_menor"
+                    value={formData.descuento_menor} onChange={handleChange}
+                    disabled={!puedeEditarDescuentos}
+                    className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 outline-none disabled:opacity-60 disabled:cursor-not-allowed"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1">Descuento (%)</label>
-                <input
-                  type="number" step="0.01" min="0" max="100" name="descuento_menor"
-                  value={formData.descuento_menor} onChange={handleChange}
-                  className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 outline-none"
-                />
-              </div>
-            </div>
+            )}
 
             {/* Fila 3: Stock Mínimo */}
             <div className="bg-zinc-50 dark:bg-zinc-800/30 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 md:col-span-1 space-y-3">
@@ -310,7 +323,7 @@ export function ModalImagen({ producto, onSubir, onEliminar, onClose, guardando 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800 w-full max-w-sm overflow-hidden">
+      <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800 w-full max-w-sm overflow-hidden max-h-[90vh] overflow-y-auto">
         {/* Cabecera */}
         <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
           <div>
@@ -406,7 +419,7 @@ export function ModalImagen({ producto, onSubir, onEliminar, onClose, guardando 
 
           {archivo && (
             <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
-              📎 {archivo.name} ({(archivo.size / 1024).toFixed(0)} KB)
+              {archivo.name} ({(archivo.size / 1024).toFixed(0)} KB)
             </p>
           )}
         </div>

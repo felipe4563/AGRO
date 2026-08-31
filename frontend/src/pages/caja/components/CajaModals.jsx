@@ -15,7 +15,7 @@ export function ModalCaja({ caja, onConfirm, onClose, guardando, sucursales = []
   };
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-md">
+      <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
         <div className="p-5 border-b border-zinc-200 dark:border-zinc-700 flex justify-between items-center">
           <h2 className="font-bold text-zinc-900 dark:text-white">{caja ? 'Editar Caja' : 'Nueva Caja'}</h2>
           <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600">✕</button>
@@ -85,7 +85,7 @@ export function ModalAbrirTurno({ cajas, onConfirm, onClose, guardando }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-md">
+      <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
         <div className="p-5 border-b border-zinc-200 dark:border-zinc-700 flex justify-between items-center">
           <h2 className="font-bold text-zinc-900 dark:text-white">Abrir Turno de Caja</h2>
           <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600">✕</button>
@@ -95,7 +95,7 @@ export function ModalAbrirTurno({ cajas, onConfirm, onClose, guardando }) {
         {sinCajas && (
           <div className="mx-5 mt-5 p-4 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700">
             <p className="text-sm font-semibold text-amber-800 dark:text-amber-300 mb-1">
-              ⚠️ No hay cajas activas registradas
+              No hay cajas activas registradas
             </p>
             <p className="text-xs text-amber-700 dark:text-amber-400">
               Debe crear al menos una caja desde la pestaña <strong>"Cajas"</strong> antes de poder abrir un turno.
@@ -177,7 +177,7 @@ export function ModalGasto({ onConfirm, onClose, guardando }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-md">
+      <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
         <div className="p-5 border-b border-zinc-200 dark:border-zinc-700 flex justify-between items-center">
           <h2 className="font-bold text-zinc-900 dark:text-white">Registrar Gasto de Caja</h2>
           <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600">✕</button>
@@ -258,7 +258,7 @@ export function ModalCerrarTurno({ turno, onConfirm, onClose, guardando }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-md">
+      <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
         <div className="p-5 border-b border-zinc-200 dark:border-zinc-700 flex justify-between items-center">
           <h2 className="font-bold text-zinc-900 dark:text-white">Cerrar Turno — Arqueo de Caja</h2>
           <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600">✕</button>

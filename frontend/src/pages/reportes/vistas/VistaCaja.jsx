@@ -78,7 +78,13 @@ export default function VistaCaja() {
             </div>
           )}
         </div>
-        <BotonesExportar datos={datos} columnas={COLUMNAS} titulo="Reporte_Arqueos_Caja" />
+        <BotonesExportar 
+          datos={datos} 
+          columnas={COLUMNAS} 
+          titulo="Reporte_Arqueos_Caja" 
+          resumen={resumen}
+          subtitulo={`Filtros aplicados: ${filtros.fechaInicio ? `Desde ${filtros.fechaInicio} Hasta ${filtros.fechaFin}` : 'Todos los tiempos'}`}
+        />
       </div>
 
       <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm">

@@ -1,6 +1,11 @@
 import { useState } from 'react';
 import productoService from '../services/producto.service';
+import almacenService from '../services/almacen.service';
 import EtiquetaBarcode from './EtiquetaBarcode';
+
+// Clave única de un ítem: por producto (etiqueta genérica) o por lote
+// (etiqueta que fija exactamente ese lote al escanearla en una venta).
+const claveItem = (it) => it.id_producto ?? it.id_lote;
 
 // Etiqueta física: 30x20mm cada una, 2 por fila (rollo de doble columna,
 // confirmado por medición: ~60mm de ancho total). Al imprimir, elegir el
@@ -33,9 +38,9 @@ export default function ModalImprimirEtiquetas({ items: itemsIniciales, onClose 
     itemsIniciales.every((it) => it.codigo_barras)
   );
 
-  const actualizarCantidad = (idProducto, valor) => {
+  const actualizarCantidad = (clave, valor) => {
     const cant = Math.max(1, parseInt(valor, 10) || 1);
-    setItems((prev) => prev.map((it) => (it.id_producto === idProducto ? { ...it, cantidad: cant } : it)));
+    setItems((prev) => prev.map((it) => (claveItem(it) === clave ? { ...it, cantidad: cant } : it)));
   };
 
   const prepararEImprimir = async () => {
@@ -45,7 +50,9 @@ export default function ModalImprimirEtiquetas({ items: itemsIniciales, onClose 
       const actualizados = await Promise.all(
         items.map(async (it) => {
           if (it.codigo_barras) return it;
-          const res = await productoService.generarCodigoBarras(it.id_producto);
+          const res = it.id_lote
+            ? await almacenService.generarCodigoBarrasLote(it.id_lote)
+            : await productoService.generarCodigoBarras(it.id_producto);
           return { ...it, codigo_barras: res.data.codigo_barras };
         })
       );
@@ -75,7 +82,7 @@ export default function ModalImprimirEtiquetas({ items: itemsIniciales, onClose 
   // alternadas.
   const etiquetas = items.flatMap((it) =>
     Array.from({ length: it.cantidad }).map((_, i) => ({
-      key: `${it.id_producto}-${i}`,
+      key: `${claveItem(it)}-${i}`,
       codigoBarras: it.codigo_barras,
       nombre: it.nombre,
       precio: it.precio_menor,
@@ -90,7 +97,7 @@ export default function ModalImprimirEtiquetas({ items: itemsIniciales, onClose 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="no-print w-full max-w-lg bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-2xl p-5 max-h-[85vh] flex flex-col">
-        <h3 className="font-bold text-zinc-900 dark:text-white mb-1">🏷️ Imprimir etiquetas ({LABEL_WIDTH_MM}x{LABEL_HEIGHT_MM}mm)</h3>
+        <h3 className="font-bold text-zinc-900 dark:text-white mb-1">Imprimir etiquetas ({LABEL_WIDTH_MM}x{LABEL_HEIGHT_MM}mm)</h3>
         <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">
           Elige cuántas copias de cada etiqueta necesitas.
         </p>
@@ -98,7 +105,7 @@ export default function ModalImprimirEtiquetas({ items: itemsIniciales, onClose 
         <div className="flex-1 overflow-y-auto space-y-2 mb-4">
           {items.map((it) => (
             <div
-              key={it.id_producto}
+              key={claveItem(it)}
               className="flex items-center justify-between gap-3 p-3 bg-zinc-50 dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700"
             >
               <div className="min-w-0">
@@ -111,7 +118,7 @@ export default function ModalImprimirEtiquetas({ items: itemsIniciales, onClose 
                 type="number"
                 min="1"
                 value={it.cantidad}
-                onChange={(e) => actualizarCantidad(it.id_producto, e.target.value)}
+                onChange={(e) => actualizarCantidad(claveItem(it), e.target.value)}
                 className="w-16 text-center py-1.5 border border-zinc-200 dark:border-zinc-700 dark:bg-zinc-900 rounded-lg text-sm text-zinc-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
               />
             </div>
@@ -132,7 +139,7 @@ export default function ModalImprimirEtiquetas({ items: itemsIniciales, onClose 
             disabled={generando}
             className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold disabled:opacity-50"
           >
-            {generando ? 'Preparando...' : '🖨️ Imprimir'}
+            {generando ? 'Preparando...' : 'Imprimir'}
           </button>
         </div>
       </div>

@@ -3,10 +3,12 @@ import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useConfiguracion } from '../../../contexts/ConfiguracionContext';
+import { useAuth } from '../../../contexts/AuthContext';
 import { dibujarEncabezadoEmpresa } from '../../../utils/pdfEmpresa';
 
-export default function BotonesExportar({ datos, columnas, titulo, orientacion = 'portrait' }) {
+export default function BotonesExportar({ datos, columnas, titulo, orientacion = 'portrait', resumen, subtitulo }) {
   const configuracion = useConfiguracion();
+  const { usuario } = useAuth();
   const [exportandoExcel, setExportandoExcel] = useState(false);
   const [exportandoPDF, setExportandoPDF] = useState(false);
 
@@ -19,11 +21,10 @@ export default function BotonesExportar({ datos, columnas, titulo, orientacion =
         let nuevaFila = {};
         columnas.forEach(col => {
           if (col.key) {
-            nuevaFila[col.header] = typeof col.render === 'function' ? col.render(fila[col.key], fila) : fila[col.key];
-            // Limpiar HTML si la función render devuelve jsx. Para Excel necesitamos texto plano.
-            // Una mejor aproximación es que col tenga un extractor de valor para Excel si renderiza JSX.
+            const headerStr = col.exportHeader || (typeof col.header === 'string' ? col.header : col.key);
+            nuevaFila[headerStr] = typeof col.render === 'function' ? col.render(fila[col.key], fila) : fila[col.key];
             if (col.excelValue) {
-               nuevaFila[col.header] = col.excelValue(fila);
+               nuevaFila[headerStr] = col.excelValue(fila);
             }
           }
         });
@@ -49,28 +50,110 @@ export default function BotonesExportar({ datos, columnas, titulo, orientacion =
       const doc = new jsPDF(orientacion, 'mm', 'a4');
 
       const encabezadoY = await dibujarEncabezadoEmpresa(doc, configuracion, { startY: 16 });
+      let y = encabezadoY;
 
-      doc.setFontSize(13);
+      doc.setFontSize(14);
       doc.setFont(undefined, 'bold');
-      doc.text(titulo, 14, encabezadoY);
+      doc.text(titulo.replace(/_/g, ' '), 14, y);
+      y += 5;
+
       doc.setFont(undefined, 'normal');
       doc.setFontSize(9);
-      doc.setTextColor(120);
-      doc.text(`Generado el: ${new Date().toLocaleString()}`, 14, encabezadoY + 5);
+      doc.setTextColor(100);
+      doc.text(`Generado el: ${new Date().toLocaleString()}`, 14, y);
+      y += 4;
+      
+      if (usuario) {
+        doc.text(`Generado por: ${usuario.nombre} ${usuario.apellido || ''} ${usuario.sucursal_nombre ? `(${usuario.sucursal_nombre})` : ''}`, 14, y);
+        y += 5;
+      } else {
+        y += 1;
+      }
+
+      if (subtitulo) {
+        const splitSub = doc.splitTextToSize(subtitulo, doc.internal.pageSize.width - 28);
+        doc.text(splitSub, 14, y);
+        y += (splitSub.length * 4) + 2;
+      }
       doc.setTextColor(0);
 
-      const head = [columnas.map(c => c.header)];
+      const columnStyles = {};
+      columnas.forEach((col, index) => {
+        if (col.align) {
+          columnStyles[index] = { halign: col.align === 'right' ? 'right' : col.align === 'center' ? 'center' : 'left' };
+        }
+      });
+
+      const head = [columnas.map(c => c.exportHeader || (typeof c.header === 'string' ? c.header : c.key))];
       const body = datos.map(fila =>
-        columnas.map(col => col.excelValue ? col.excelValue(fila) : fila[col.key] || '')
+        columnas.map(col => {
+          if (col.pdfValue) return col.pdfValue(fila);
+          if (col.excelValue) {
+            const val = col.excelValue(fila);
+            if (typeof val === 'number') {
+               return Number.isInteger(val) ? val.toString() : val.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            }
+            return val !== null && val !== undefined ? String(val) : '';
+          }
+          return fila[col.key] !== null && fila[col.key] !== undefined ? String(fila[col.key]) : '';
+        })
       );
 
       autoTable(doc, {
         head: head,
         body: body,
-        startY: encabezadoY + 9,
-        styles: { fontSize: 8 },
-        headStyles: { fillColor: [16, 185, 129] }, // Emerald-500
+        startY: y,
+        styles: { fontSize: 8, cellPadding: 2 },
+        headStyles: { fillColor: [16, 185, 129], textColor: [255, 255, 255], fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [249, 250, 251] }, // Estilo cebra ligero
+        columnStyles: columnStyles,
       });
+
+      y = doc.lastAutoTable.finalY + 10;
+
+      // Renderizar resumen si existe
+      if (resumen && Object.keys(resumen).length > 0) {
+        if (y > doc.internal.pageSize.height - 40) {
+          doc.addPage();
+          y = 20;
+        }
+
+        doc.setFontSize(11);
+        doc.setFont(undefined, 'bold');
+        doc.setTextColor(30);
+        doc.text('RESUMEN DEL REPORTE', 14, y);
+        y += 6;
+
+        doc.setFontSize(9);
+        const labels = {
+          total_registros: 'Total Registros:',
+          suma_total: 'Valor Total (Bs):',
+          unidades_total: 'Total Unidades:',
+          total_ingresos: 'Ingresos Totales (Bs):',
+          costo_total: 'Costo Total (Bs):',
+          ganancia_total: 'Ganancia Bruta (Bs):',
+          valor_total: 'Valor Total Estimado (Bs):',
+          total_global: 'Total Global (Bs):',
+          total_diferencia: 'Diferencia Total (Bs):',
+          arqueos_con_diferencia: 'Arqueos c/Diferencia:'
+        };
+
+        const startX = 14;
+        Object.entries(resumen).forEach(([key, val]) => {
+          let label = labels[key] || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) + ':';
+          let displayVal = val;
+          if (typeof val === 'number') {
+             displayVal = Number.isInteger(val) ? val.toString() : val.toLocaleString('en-US', {minimumFractionDigits: 2});
+          }
+          
+          doc.setFont(undefined, 'bold');
+          doc.text(label, startX, y);
+          doc.setFont(undefined, 'normal');
+          doc.text(String(displayVal), startX + doc.getTextWidth(label) + 2, y);
+          
+          y += 5;
+        });
+      }
 
       doc.save(`${titulo}_${new Date().toISOString().split('T')[0]}.pdf`);
     } catch (err) {

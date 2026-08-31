@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import cobroService from '../../services/cobro.service';
+import cuentaPagarService from '../../services/cuentaPagar.service';
 import { imprimirConRawBTyLogo, centrar, fila, linea } from '../../utils/rawbt';
 import { useConfiguracion } from '../../contexts/ConfiguracionContext';
 
@@ -13,7 +13,7 @@ const fmtFecha = (s) =>
       })
     : '—';
 
-export default function TicketCobro() {
+export default function TicketPago() {
   const { id }                  = useParams();
   const navigate                = useNavigate();
   const { nombreEmpresa, logoUrl, tieneLogoPropio } = useConfiguracion();
@@ -21,10 +21,10 @@ export default function TicketCobro() {
   const [cargando, setCargando] = useState(true);
 
   useEffect(() => {
-    cobroService
+    cuentaPagarService
       .obtenerPago(id)
       .then((r) => setPago(r.data))
-      .catch(() => navigate('/cobros'))
+      .catch(() => navigate('/cuentas-pagar'))
       .finally(() => setCargando(false));
   }, [id]); // eslint-disable-line
 
@@ -36,9 +36,7 @@ export default function TicketCobro() {
     );
   if (!pago) return null;
 
-  const clienteNombre = pago.cliente_nombre
-    ? `${pago.cliente_nombre} ${pago.cliente_apellido || ''}`.trim()
-    : 'Consumidor Final';
+  const proveedorNombre = pago.proveedor_nombre || 'Proveedor';
 
   const construirTextoComprobante = () => {
     const L = [];
@@ -49,17 +47,17 @@ export default function TicketCobro() {
     }
     if (pago.sucursal_telefono) L.push(centrar(`Tel: ${pago.sucursal_telefono}`));
     L.push(linea());
-    L.push('COMPROBANTE DE ABONO');
-    L.push(fila('Nro:', pago.id_pago.toString().padStart(6, '0')));
+    L.push('COMPROBANTE DE PAGO A PROVEEDOR');
+    L.push(fila('Nro:', pago.id_pago_proveedor.toString().padStart(6, '0')));
     L.push(fila('Fecha:', fmtFecha(pago.fecha_pago)));
-    L.push(fila('Cajero:', `${pago.usuario_nombre} ${pago.usuario_apellido}`));
-    L.push(fila('Venta:', `Nro ${pago.id_venta.toString().padStart(6, '0')}`));
+    L.push(fila('Registrado por:', `${pago.usuario_nombre} ${pago.usuario_apellido}`));
+    L.push(fila('Compra:', `Nro ${pago.id_compra.toString().padStart(6, '0')}`));
     L.push(linea());
-    L.push('CLIENTE');
-    L.push(clienteNombre);
-    if (pago.ci_nit) L.push(`CI/NIT: ${pago.ci_nit}`);
+    L.push('PROVEEDOR');
+    L.push(proveedorNombre);
+    if (pago.nit) L.push(`NIT: ${pago.nit}`);
     L.push(linea('='));
-    L.push(fila('Total venta Bs:', fmt(pago.venta_total)));
+    L.push(fila('Total compra Bs:', fmt(pago.compra_total)));
     L.push(fila('Saldo anterior Bs:', fmt(pago.saldo_anterior)));
     L.push(fila('ABONO PAGADO Bs:', fmt(pago.monto)));
     L.push(fila('Metodo:', pago.metodo_pago));
@@ -71,7 +69,6 @@ export default function TicketCobro() {
       L.push(centrar('*** DEUDA SALDADA ***'));
     }
     L.push(linea());
-    L.push(centrar('Gracias por su pago!'));
     L.push(centrar(nombreEmpresa));
     L.push('\n\n\n');
     return L.join('\n');
@@ -97,10 +94,10 @@ export default function TicketCobro() {
           Imprimir Bluetooth (RawBT)
         </button>
         <button
-          onClick={() => navigate('/cobros')}
+          onClick={() => navigate('/cuentas-pagar')}
           className="px-5 py-2 rounded-xl border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 font-semibold text-sm transition-colors"
         >
-          ← Volver a Cobros
+          ← Volver a Cuentas por Pagar
         </button>
       </div>
 
@@ -141,37 +138,37 @@ export default function TicketCobro() {
 
           <div style={{ marginBottom: '4px' }}>
             <div style={{ ...row, fontWeight: 'bold' }}>
-              <span>COMPROBANTE DE ABONO</span>
-              <span>Nº {pago.id_pago.toString().padStart(6, '0')}</span>
+              <span>COMPROBANTE DE PAGO</span>
+              <span>Nº {pago.id_pago_proveedor.toString().padStart(6, '0')}</span>
             </div>
             <div style={row}>
               <span>Fecha:</span>
               <span>{fmtFecha(pago.fecha_pago)}</span>
             </div>
             <div style={row}>
-              <span>Cajero:</span>
+              <span>Registrado por:</span>
               <span>{pago.usuario_nombre} {pago.usuario_apellido}</span>
             </div>
             <div style={row}>
-              <span>Venta a crédito:</span>
-              <span>Nº {pago.id_venta.toString().padStart(6, '0')}</span>
+              <span>Compra a crédito:</span>
+              <span>Nº {pago.id_compra.toString().padStart(6, '0')}</span>
             </div>
           </div>
 
           <div style={sep} />
 
           <div style={{ marginBottom: '4px' }}>
-            <div style={{ fontWeight: 'bold' }}>CLIENTE</div>
-            <div>{clienteNombre}</div>
-            {pago.ci_nit && <div>CI/NIT: {pago.ci_nit}</div>}
+            <div style={{ fontWeight: 'bold' }}>PROVEEDOR</div>
+            <div>{proveedorNombre}</div>
+            {pago.nit && <div>NIT: {pago.nit}</div>}
           </div>
 
           <div style={{ borderTop: '1.5px solid #000', margin: '4px 0' }} />
 
           <div style={{ marginBottom: '4px' }}>
             <div style={row}>
-              <span>Total de la venta:</span>
-              <span>Bs {fmt(pago.venta_total)}</span>
+              <span>Total de la compra:</span>
+              <span>Bs {fmt(pago.compra_total)}</span>
             </div>
             <div style={row}>
               <span>Saldo anterior:</span>
@@ -214,8 +211,7 @@ export default function TicketCobro() {
           <div style={sep} />
 
           <div style={{ textAlign: 'center', fontSize: '10px', marginTop: '4px' }}>
-            <div>¡Gracias por su pago!</div>
-            <div style={{ marginTop: '2px' }}>{nombreEmpresa} · Sistema Agropecuario</div>
+            <div>{nombreEmpresa} · Sistema Agropecuario</div>
           </div>
         </div>
       </div>

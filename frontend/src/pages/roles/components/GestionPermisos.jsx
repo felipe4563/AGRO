@@ -30,7 +30,6 @@ export default function GestionPermisos({
                       h-48 sm:h-64 rounded-2xl border-2 border-dashed
                       border-zinc-200 dark:border-zinc-700
                       text-zinc-400 dark:text-zinc-600 px-4">
-        <span className="text-3xl sm:text-4xl mb-3">🔐</span>
         <p className="text-sm font-medium text-center">
           Selecciona un rol para gestionar sus permisos
         </p>
@@ -55,7 +54,7 @@ export default function GestionPermisos({
           <span className="text-xs font-semibold px-2 py-0.5 rounded-full
                            bg-yellow-100 dark:bg-yellow-400/20
                            text-yellow-700 dark:text-yellow-400">
-            🔑 {seleccionados.size} permisos
+            {seleccionados.size} permisos
           </span>
 
           {/* Badge sin guardar */}
@@ -70,7 +69,7 @@ export default function GestionPermisos({
 
         {/* Usuarios con este rol */}
         <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-3">
-          👥 {rolActivo.total_usuarios} usuario(s) con este rol
+          {rolActivo.total_usuarios} usuario(s) con este rol
         </p>
 
         {/* ── Botones — en móvil ocupan todo el ancho ─────────────── */}
@@ -86,7 +85,7 @@ export default function GestionPermisos({
                          text-zinc-700 dark:text-zinc-300
                          hover:bg-zinc-200 dark:hover:bg-zinc-600"
             >
-              ✏️ Renombrar
+              Renombrar
             </button>
           </Can>
 
@@ -101,7 +100,7 @@ export default function GestionPermisos({
                          hover:bg-red-100 dark:hover:bg-red-500/20
                          border border-red-200 dark:border-red-500/20"
             >
-              🗑 Eliminar
+              Eliminar
             </button>
           </Can>
 
@@ -127,7 +126,7 @@ export default function GestionPermisos({
                   Guardando...
                 </>
               ) : (
-                '💾 Guardar cambios'
+                'Guardar cambios'
               )}
             </button>
           </Can>

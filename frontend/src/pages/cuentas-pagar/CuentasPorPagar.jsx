@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PageWrapper from '../../components/PageWrapper';
-import cobroService from '../../services/cobro.service';
+import cuentaPagarService from '../../services/cuentaPagar.service';
 
 function Toast({ toast }) {
   if (!toast) return null;
@@ -16,14 +16,14 @@ function Toast({ toast }) {
   );
 }
 
-function ModalPago({ venta, onClose, onPagado }) {
+function ModalPago({ compra, onClose, onPagado }) {
   const [monto, setMonto] = useState('');
   const [metodoPago, setMetodoPago] = useState('EFECTIVO');
   const [observaciones, setObservaciones] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState('');
 
-  const saldo = parseFloat(venta.saldo_pendiente);
+  const saldo = parseFloat(compra.saldo_pendiente);
 
   const registrar = async () => {
     setError('');
@@ -33,8 +33,8 @@ function ModalPago({ venta, onClose, onPagado }) {
 
     setEnviando(true);
     try {
-      const res = await cobroService.registrarPago(venta.id_venta, { monto: montoNum, metodo_pago: metodoPago, observaciones });
-      onPagado(res.data.id_pago);
+      const res = await cuentaPagarService.registrarPago(compra.id_compra, { monto: montoNum, metodo_pago: metodoPago, observaciones });
+      onPagado(res.data.id_pago_proveedor);
     } catch (err) {
       setError(err.response?.data?.error || 'Error al registrar el abono');
     } finally {
@@ -47,7 +47,7 @@ function ModalPago({ venta, onClose, onPagado }) {
       <div className="w-full max-w-sm max-h-[90vh] overflow-y-auto bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-2xl p-5">
         <h3 className="font-bold text-zinc-900 dark:text-white mb-1">Registrar abono</h3>
         <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">
-          Venta #{venta.id_venta.toString().padStart(5, '0')} — Saldo pendiente: <span className="font-semibold text-orange-600 dark:text-orange-400">Bs {saldo.toFixed(2)}</span>
+          Compra #{compra.id_compra.toString().padStart(5, '0')} — Saldo pendiente: <span className="font-semibold text-orange-600 dark:text-orange-400">Bs {saldo.toFixed(2)}</span>
         </p>
 
         <label className="text-xs text-zinc-500 mb-1 block">Monto del abono (Bs)</label>
@@ -103,7 +103,7 @@ function ModalPago({ venta, onClose, onPagado }) {
   );
 }
 
-export default function CuentasPorCobrar() {
+export default function CuentasPorPagar() {
   const navigate = useNavigate();
   const [vista, setVista] = useState('pendientes'); // 'pendientes' | 'historial'
   const [cuentas, setCuentas] = useState([]);
@@ -112,7 +112,7 @@ export default function CuentasPorCobrar() {
   const [cargandoHistorial, setCargandoHistorial] = useState(true);
   const [historialCargado, setHistorialCargado] = useState(false);
   const [toast, setToast] = useState(null);
-  const [ventaSeleccionada, setVentaSeleccionada] = useState(null);
+  const [compraSeleccionada, setCompraSeleccionada] = useState(null);
   const [busqueda, setBusqueda] = useState('');
 
   const mostrarToast = (tipo, msg) => {
@@ -123,10 +123,10 @@ export default function CuentasPorCobrar() {
   const cargarDatos = useCallback(async () => {
     setCargando(true);
     try {
-      const res = await cobroService.listar();
+      const res = await cuentaPagarService.listar();
       setCuentas(res.data);
     } catch {
-      mostrarToast('error', 'Error al cargar cuentas por cobrar');
+      mostrarToast('error', 'Error al cargar cuentas por pagar');
     } finally {
       setCargando(false);
     }
@@ -135,7 +135,7 @@ export default function CuentasPorCobrar() {
   const cargarHistorial = useCallback(async () => {
     setCargandoHistorial(true);
     try {
-      const res = await cobroService.listarHistorial();
+      const res = await cuentaPagarService.listarHistorial();
       setHistorial(res.data);
       setHistorialCargado(true);
     } catch {
@@ -151,38 +151,37 @@ export default function CuentasPorCobrar() {
     if (vista === 'historial' && !historialCargado) cargarHistorial();
   }, [vista, historialCargado, cargarHistorial]);
 
-  const coincide = (nombre, apellido, ciNit, texto) => {
+  const coincide = (empresa, nit, texto) => {
     const b = texto.trim().toLowerCase();
     if (!b) return true;
-    const nombreCompleto = `${nombre || ''} ${apellido || ''}`.toLowerCase();
-    return nombreCompleto.includes(b) || (ciNit || '').toLowerCase().includes(b);
+    return (empresa || '').toLowerCase().includes(b) || (nit || '').toLowerCase().includes(b);
   };
 
   const cuentasFiltradas = useMemo(
-    () => cuentas.filter(c => coincide(c.cliente_nombre, c.cliente_apellido, c.ci_nit, busqueda)),
+    () => cuentas.filter(c => coincide(c.proveedor_nombre, c.nit, busqueda)),
     [cuentas, busqueda]
   );
 
   const historialFiltrado = useMemo(
-    () => historial.filter(p => coincide(p.cliente_nombre, p.cliente_apellido, null, busqueda)),
+    () => historial.filter(p => coincide(p.proveedor_nombre, null, busqueda)),
     [historial, busqueda]
   );
 
   const totalPendiente = cuentasFiltradas.reduce((acc, c) => acc + parseFloat(c.saldo_pendiente), 0);
 
   const handlePagado = (idPago) => {
-    setVentaSeleccionada(null);
+    setCompraSeleccionada(null);
     setHistorialCargado(false); // refrescar historial la próxima vez que se abra
-    navigate(`/cobros/pagos/${idPago}/ticket`);
+    navigate(`/cuentas-pagar/pagos/${idPago}/ticket`);
   };
 
   return (
     <PageWrapper>
       <Toast toast={toast} />
-      {ventaSeleccionada && (
+      {compraSeleccionada && (
         <ModalPago
-          venta={ventaSeleccionada}
-          onClose={() => setVentaSeleccionada(null)}
+          compra={compraSeleccionada}
+          onClose={() => setCompraSeleccionada(null)}
           onPagado={handlePagado}
         />
       )}
@@ -190,10 +189,10 @@ export default function CuentasPorCobrar() {
       <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-zinc-900 dark:text-white flex items-center gap-2">
-            Cuentas por Cobrar
+            Cuentas por Pagar
           </h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-            Ventas a crédito con saldo pendiente de pago.
+            Compras a crédito con saldo pendiente a proveedores.
           </p>
         </div>
         {!cargando && cuentasFiltradas.length > 0 && (
@@ -227,11 +226,11 @@ export default function CuentasPorCobrar() {
         </button>
       </div>
 
-      {/* Buscador de persona */}
+      {/* Buscador de proveedor */}
       <div className="relative mb-4 max-w-sm">
         <input
           type="text"
-          placeholder="Buscar por nombre, apellido o CI/NIT..."
+          placeholder="Buscar por empresa o NIT..."
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
           className="w-full pl-9 pr-4 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
@@ -259,26 +258,26 @@ export default function CuentasPorCobrar() {
                   <thead>
                     <tr className="bg-zinc-50 dark:bg-zinc-800/50 border-b border-zinc-200 dark:border-zinc-800 text-xs uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
                       <th className="px-4 py-3 font-medium">Comprobante</th>
-                      <th className="px-4 py-3 font-medium">Venta</th>
-                      <th className="px-4 py-3 font-medium">Cliente</th>
+                      <th className="px-4 py-3 font-medium">Compra</th>
+                      <th className="px-4 py-3 font-medium">Proveedor</th>
                       <th className="px-4 py-3 font-medium text-right">Abono (Bs)</th>
                       <th className="px-4 py-3 font-medium text-right">Acción</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
                     {historialFiltrado.map((p) => (
-                      <tr key={p.id_pago} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
+                      <tr key={p.id_pago_proveedor} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
                         <td className="px-4 py-3">
-                          <p className="text-sm font-bold text-zinc-900 dark:text-white"># {p.id_pago.toString().padStart(5, '0')}</p>
+                          <p className="text-sm font-bold text-zinc-900 dark:text-white"># {p.id_pago_proveedor.toString().padStart(5, '0')}</p>
                           <p className="text-xs text-zinc-500 dark:text-zinc-400">
                             {new Date(p.fecha_pago).toLocaleDateString()} {new Date(p.fecha_pago).toLocaleTimeString()}
                           </p>
                         </td>
                         <td className="px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300">
-                          # {p.id_venta.toString().padStart(5, '0')}
+                          # {p.id_compra.toString().padStart(5, '0')}
                         </td>
                         <td className="px-4 py-3 text-sm text-zinc-900 dark:text-zinc-100">
-                          {p.cliente_nombre ? `${p.cliente_nombre} ${p.cliente_apellido || ''}` : <span className="italic text-zinc-500">Sin cliente</span>}
+                          {p.proveedor_nombre || <span className="italic text-zinc-500">Sin proveedor</span>}
                         </td>
                         <td className="px-4 py-3 text-right text-sm font-bold text-emerald-600 dark:text-emerald-400">
                           {parseFloat(p.monto).toFixed(2)}
@@ -286,7 +285,7 @@ export default function CuentasPorCobrar() {
                         </td>
                         <td className="px-4 py-3 text-right">
                           <button
-                            onClick={() => navigate(`/cobros/pagos/${p.id_pago}/ticket`)}
+                            onClick={() => navigate(`/cuentas-pagar/pagos/${p.id_pago_proveedor}/ticket`)}
                             className="p-1.5 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/30 rounded transition-colors"
                             title="Ver / Reimprimir comprobante"
                           >
@@ -305,10 +304,10 @@ export default function CuentasPorCobrar() {
             {/* ── Vista tarjetas (móvil) ────────────────────────────── */}
             <div className="sm:hidden space-y-3">
               {historialFiltrado.map((p) => (
-                <div key={p.id_pago} className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm p-4">
+                <div key={p.id_pago_proveedor} className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm p-4">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <p className="text-sm font-bold text-zinc-900 dark:text-white"># {p.id_pago.toString().padStart(5, '0')}</p>
+                      <p className="text-sm font-bold text-zinc-900 dark:text-white"># {p.id_pago_proveedor.toString().padStart(5, '0')}</p>
                       <p className="text-xs text-zinc-500 dark:text-zinc-400">
                         {new Date(p.fecha_pago).toLocaleDateString()} {new Date(p.fecha_pago).toLocaleTimeString()}
                       </p>
@@ -318,13 +317,13 @@ export default function CuentasPorCobrar() {
                     </p>
                   </div>
                   <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800 text-sm text-zinc-900 dark:text-zinc-100">
-                    <p>Venta # {p.id_venta.toString().padStart(5, '0')}</p>
+                    <p>Compra # {p.id_compra.toString().padStart(5, '0')}</p>
                     <p className="text-xs text-zinc-500 mt-0.5">
-                      {p.cliente_nombre ? `${p.cliente_nombre} ${p.cliente_apellido || ''}` : 'Sin cliente'} · {p.metodo_pago}
+                      {p.proveedor_nombre || 'Sin proveedor'} · {p.metodo_pago}
                     </p>
                   </div>
                   <button
-                    onClick={() => navigate(`/cobros/pagos/${p.id_pago}/ticket`)}
+                    onClick={() => navigate(`/cuentas-pagar/pagos/${p.id_pago_proveedor}/ticket`)}
                     className="w-full mt-3 py-2 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg text-sm font-bold flex items-center justify-center gap-2"
                   >
                     Ver / Reimprimir comprobante
@@ -336,12 +335,12 @@ export default function CuentasPorCobrar() {
         )
       ) : cargando ? (
         <div className="p-8 flex flex-col items-center justify-center text-zinc-500 dark:text-zinc-400">
-          <p>Cargando cuentas por cobrar...</p>
+          <p>Cargando cuentas por pagar...</p>
         </div>
       ) : cuentasFiltradas.length === 0 ? (
         <div className="p-8 text-center text-zinc-500 dark:text-zinc-400 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
           <p className="text-lg">{busqueda ? 'No se encontraron cuentas para esa búsqueda.' : 'No hay cuentas pendientes.'}</p>
-          {!busqueda && <p className="text-sm mt-1">Todas las ventas a crédito están saldadas.</p>}
+          {!busqueda && <p className="text-sm mt-1">Todas las compras a crédito están saldadas.</p>}
         </div>
       ) : (
         <>
@@ -351,8 +350,8 @@ export default function CuentasPorCobrar() {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-zinc-50 dark:bg-zinc-800/50 border-b border-zinc-200 dark:border-zinc-800 text-xs uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                    <th className="px-4 py-3 font-medium">Venta</th>
-                    <th className="px-4 py-3 font-medium">Cliente</th>
+                    <th className="px-4 py-3 font-medium">Compra</th>
+                    <th className="px-4 py-3 font-medium">Proveedor</th>
                     <th className="px-4 py-3 font-medium text-right">Total (Bs)</th>
                     <th className="px-4 py-3 font-medium text-right">Saldo pendiente (Bs)</th>
                     <th className="px-4 py-3 font-medium text-right">Acción</th>
@@ -360,26 +359,26 @@ export default function CuentasPorCobrar() {
                 </thead>
                 <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
                   {cuentasFiltradas.map((c) => (
-                    <tr key={c.id_venta} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
+                    <tr key={c.id_compra} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
                       <td className="px-4 py-3">
-                        <p className="text-sm font-bold text-zinc-900 dark:text-white"># {c.id_venta.toString().padStart(5, '0')}</p>
-                        <p className="text-xs text-zinc-500 dark:text-zinc-400">{new Date(c.fecha_venta).toLocaleDateString()}</p>
+                        <p className="text-sm font-bold text-zinc-900 dark:text-white"># {c.id_compra.toString().padStart(5, '0')}</p>
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400">{new Date(c.fecha_compra).toLocaleDateString()}</p>
                       </td>
                       <td className="px-4 py-3 text-sm text-zinc-900 dark:text-zinc-100">
-                        {c.cliente_nombre ? (
+                        {c.proveedor_nombre ? (
                           <>
-                            <p className="font-semibold">{c.cliente_nombre} {c.cliente_apellido || ''}</p>
-                            <p className="text-xs text-zinc-500">CI/NIT: {c.ci_nit || 'S/N'}</p>
+                            <p className="font-semibold">{c.proveedor_nombre}</p>
+                            <p className="text-xs text-zinc-500">NIT: {c.nit || 'S/N'}</p>
                           </>
                         ) : (
-                          <span className="italic text-zinc-500">Sin cliente</span>
+                          <span className="italic text-zinc-500">Sin proveedor</span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-right text-sm text-zinc-700 dark:text-zinc-300">{parseFloat(c.total).toFixed(2)}</td>
                       <td className="px-4 py-3 text-right text-sm font-bold text-orange-600 dark:text-orange-400">{parseFloat(c.saldo_pendiente).toFixed(2)}</td>
                       <td className="px-4 py-3 text-right">
                         <button
-                          onClick={() => setVentaSeleccionada(c)}
+                          onClick={() => setCompraSeleccionada(c)}
                           className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold"
                         >
                           Registrar abono
@@ -395,29 +394,29 @@ export default function CuentasPorCobrar() {
           {/* ── Vista tarjetas (móvil) ────────────────────────────────── */}
           <div className="sm:hidden space-y-3">
             {cuentasFiltradas.map((c) => (
-              <div key={c.id_venta} className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm p-4">
+              <div key={c.id_compra} className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm p-4">
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <p className="text-sm font-bold text-zinc-900 dark:text-white"># {c.id_venta.toString().padStart(5, '0')}</p>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400">{new Date(c.fecha_venta).toLocaleDateString()}</p>
+                    <p className="text-sm font-bold text-zinc-900 dark:text-white"># {c.id_compra.toString().padStart(5, '0')}</p>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">{new Date(c.fecha_compra).toLocaleDateString()}</p>
                   </div>
                   <span className="px-2 py-0.5 rounded text-xs font-bold bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300">
                     Bs {parseFloat(c.saldo_pendiente).toFixed(2)}
                   </span>
                 </div>
                 <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800 text-sm text-zinc-900 dark:text-zinc-100">
-                  {c.cliente_nombre ? (
+                  {c.proveedor_nombre ? (
                     <>
-                      <p className="font-semibold">{c.cliente_nombre} {c.cliente_apellido || ''}</p>
-                      <p className="text-xs text-zinc-500">CI/NIT: {c.ci_nit || 'S/N'}</p>
+                      <p className="font-semibold">{c.proveedor_nombre}</p>
+                      <p className="text-xs text-zinc-500">NIT: {c.nit || 'S/N'}</p>
                     </>
                   ) : (
-                    <span className="italic text-zinc-500">Sin cliente</span>
+                    <span className="italic text-zinc-500">Sin proveedor</span>
                   )}
-                  <p className="text-xs text-zinc-500 mt-1">Total venta: Bs {parseFloat(c.total).toFixed(2)}</p>
+                  <p className="text-xs text-zinc-500 mt-1">Total compra: Bs {parseFloat(c.total).toFixed(2)}</p>
                 </div>
                 <button
-                  onClick={() => setVentaSeleccionada(c)}
+                  onClick={() => setCompraSeleccionada(c)}
                   className="w-full mt-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-bold"
                 >
                   Registrar abono

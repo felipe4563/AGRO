@@ -30,6 +30,7 @@ async function cargarLogoDataUrl(logoUrl) {
 export async function dibujarEncabezadoEmpresa(doc, config = {}, opciones = {}) {
   const marginX = opciones.marginX ?? 14;
   const startY = opciones.startY ?? 14;
+  const pageWidth = doc.internal.pageSize.getWidth();
   const logoSize = 18;
   let textX = marginX;
 
@@ -41,40 +42,56 @@ export async function dibujarEncabezadoEmpresa(doc, config = {}, opciones = {}) 
         doc.addImage(dataUrl, formato, marginX, startY - 4, logoSize, logoSize);
         textX = marginX + logoSize + 4;
       } catch {
-        // Formato de imagen no soportado por jsPDF — se omite el logo, no es fatal.
+        // Formato no soportado
       }
     }
   }
 
+  // Izquierda: Nombre de la empresa y NIT
   let y = startY;
   doc.setFont(undefined, 'bold');
-  doc.setFontSize(13);
+  doc.setFontSize(14);
   doc.setTextColor(20);
   doc.text(config.nombreEmpresa || 'SIS-AGRO', textX, y);
 
-  doc.setFont(undefined, 'normal');
-  doc.setFontSize(8.5);
-  doc.setTextColor(100);
-  y += 4.5;
+  if (config.nit) {
+    y += 5;
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(100);
+    doc.text(`NIT: ${config.nit}`, textX, y);
+  }
 
-  const lineas = [];
-  if (config.nit) lineas.push(`NIT: ${config.nit}`);
+  // Derecha: Dirección y Contacto
+  doc.setFont(undefined, 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(80);
+  
+  let rightY = startY;
+  const alignRight = (text, yPos) => {
+    const textWidth = doc.getTextWidth(text);
+    doc.text(text, pageWidth - marginX - textWidth, yPos);
+  };
+
   const dirCiudad = [config.direccion, config.ciudad].filter(Boolean).join(' — ');
-  if (dirCiudad) lineas.push(dirCiudad);
-  const contacto = [config.telefono, config.correo].filter(Boolean).join('  ·  ');
-  if (contacto) lineas.push(contacto);
+  if (dirCiudad) {
+    alignRight(dirCiudad, rightY);
+    rightY += 5;
+  }
+  
+  const contacto = [config.telefono, config.correo].filter(Boolean).join('  |  ');
+  if (contacto) {
+    alignRight(contacto, rightY);
+    rightY += 5;
+  }
 
-  lineas.forEach((linea) => {
-    doc.text(linea, textX, y);
-    y += 4;
-  });
-
-  doc.setTextColor(0);
-  doc.setFont(undefined, 'normal');
-
-  y = Math.max(y, startY - 4 + logoSize) + 3;
+  // Dibujar línea separadora
+  const finalY = Math.max(y, rightY - 5, startY - 4 + logoSize) + 4;
+  
   doc.setDrawColor(220);
-  doc.line(marginX, y, doc.internal.pageSize.getWidth() - marginX, y);
+  doc.setLineWidth(0.5);
+  doc.line(marginX, finalY, pageWidth - marginX, finalY);
 
-  return y + 6;
+  doc.setTextColor(0); // Reset color
+  return finalY + 6;
 }

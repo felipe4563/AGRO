@@ -9,6 +9,6 @@ router.get('/', checkPermission('ver', 'compras'), ctrl.listar);
 router.get('/:id', checkPermission('ver', 'compras'), ctrl.obtener);
 router.post('/', checkPermission('crear', 'compras'), ctrl.crear);
 router.post('/:id/confirmar', checkPermission('confirmar', 'compras'), ctrl.confirmar);
-router.patch('/:id/anular', checkPermission('editar', 'compras'), ctrl.anular); // Requerirá editar para anular
+router.patch('/:id/anular', checkPermission('anular', 'compras'), ctrl.anular);
 
 module.exports = router;

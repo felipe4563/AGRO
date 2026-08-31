@@ -1,12 +1,77 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+
+function AutocompleteProducto({ productos = [], valorId, onSeleccionar }) {
+  const [texto, setTexto] = useState('');
+  const [abierto, setAbierto] = useState(false);
+  const contenedorRef = useRef(null);
+
+  // Mientras el usuario escribe/navega el dropdown (abierto=true) el texto es
+  // libre; al cerrarse, se sincroniza con el nombre del producto realmente
+  // seleccionado (o queda vacío si no hay uno válido).
+  useEffect(() => {
+    if (abierto) return;
+    if (!valorId) { setTexto(''); return; }
+    const seleccionado = productos.find(p => String(p.id_producto) === String(valorId));
+    setTexto(seleccionado ? seleccionado.nombre : '');
+  }, [valorId, productos, abierto]);
+
+  useEffect(() => {
+    const handleClickFuera = (e) => {
+      if (contenedorRef.current && !contenedorRef.current.contains(e.target)) setAbierto(false);
+    };
+    document.addEventListener('mousedown', handleClickFuera);
+    return () => document.removeEventListener('mousedown', handleClickFuera);
+  }, []);
+
+  const filtrados = texto.trim()
+    ? productos.filter(p => p.nombre.toLowerCase().includes(texto.trim().toLowerCase()))
+    : productos;
+
+  return (
+    <div className="relative" ref={contenedorRef}>
+      <label className="block text-xs text-zinc-500 mb-1">Producto</label>
+      <input
+        type="text"
+        value={texto}
+        placeholder="Escriba para buscar..."
+        onChange={(e) => setTexto(e.target.value)}
+        onFocus={() => setAbierto(true)}
+        className="w-full px-3 py-1.5 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500"
+      />
+      {abierto && (
+        <ul className="absolute z-20 mt-1 w-full max-h-56 overflow-y-auto bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg">
+          <li
+            onClick={() => { onSeleccionar(''); setTexto(''); setAbierto(false); }}
+            className="px-3 py-1.5 text-sm cursor-pointer text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-700"
+          >
+            Todos los productos
+          </li>
+          {filtrados.length === 0 ? (
+            <li className="px-3 py-1.5 text-sm text-zinc-400">Sin coincidencias</li>
+          ) : (
+            filtrados.slice(0, 50).map(p => (
+              <li
+                key={p.id_producto}
+                onClick={() => { onSeleccionar(p.id_producto); setTexto(p.nombre); setAbierto(false); }}
+                className="px-3 py-1.5 text-sm cursor-pointer hover:bg-emerald-50 dark:hover:bg-emerald-900/30 text-zinc-800 dark:text-zinc-100"
+              >
+                {p.nombre}
+              </li>
+            ))
+          )}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 export default function FiltrosAvanzados({
   filtros,
   setFiltros,
   onBuscar,
   cargando,
-  opciones = { fechas: true, clientes: false, productos: false, vendedores: false, proveedores: false, sucursales: false },
-  catalogos = { clientes: [], productos: [], usuarios: [], proveedores: [], sucursales: [] }
+  opciones = { fechas: true, clientes: false, productos: false, vendedores: false, proveedores: false, sucursales: false, marcas: false, categorias: false },
+  catalogos = { clientes: [], productos: [], usuarios: [], proveedores: [], sucursales: [], marcas: [], clasificaciones: [] }
 }) {
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -73,19 +138,42 @@ export default function FiltrosAvanzados({
           </div>
         )}
 
-        {opciones.productos && (
+        {opciones.marcas && (
           <div>
-            <label className="block text-xs text-zinc-500 mb-1">Producto</label>
-            <select 
-              name="id_producto" 
-              value={filtros.id_producto || ''} 
+            <label className="block text-xs text-zinc-500 mb-1">Marca</label>
+            <select
+              name="id_marca"
+              value={filtros.id_marca || ''}
               onChange={handleChange}
               className="w-full px-3 py-1.5 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500"
             >
-              <option value="">Todos los productos</option>
-              {catalogos.productos?.map(p => <option key={p.id_producto} value={p.id_producto}>{p.nombre}</option>)}
+              <option value="">Todas las marcas</option>
+              {catalogos.marcas?.map(m => <option key={m.id_marca} value={m.id_marca}>{m.nombre}</option>)}
             </select>
           </div>
+        )}
+
+        {opciones.categorias && (
+          <div>
+            <label className="block text-xs text-zinc-500 mb-1">Categoría</label>
+            <select
+              name="id_clasificacion"
+              value={filtros.id_clasificacion || ''}
+              onChange={handleChange}
+              className="w-full px-3 py-1.5 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+              <option value="">Todas las categorías</option>
+              {catalogos.clasificaciones?.map(c => <option key={c.id_clasificacion} value={c.id_clasificacion}>{c.nombre}</option>)}
+            </select>
+          </div>
+        )}
+
+        {opciones.productos && (
+          <AutocompleteProducto
+            productos={catalogos.productos || []}
+            valorId={filtros.id_producto}
+            onSeleccionar={(id) => setFiltros(prev => ({ ...prev, id_producto: id }))}
+          />
         )}
 
         {opciones.vendedores && (

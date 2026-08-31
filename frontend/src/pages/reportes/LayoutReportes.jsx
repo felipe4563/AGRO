@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { usePermission } from '../../hooks/usePermission';
 import PageWrapper from '../../components/PageWrapper';
 import DashboardReportes from './DashboardReportes';
@@ -101,6 +101,30 @@ export default function LayoutReportes() {
 
   const [activeTab, setActiveTab] = useState(tabsVisibles.length > 0 ? tabsVisibles[0].id : null);
 
+  // Flechas y degradados de la barra de pestañas: solo se muestran cuando
+  // realmente hay contenido oculto a ese lado (evita mostrarlos si todas
+  // las pestañas ya caben en pantalla).
+  const scrollRef = useRef(null);
+  const [puedeScrollIzq, setPuedeScrollIzq] = useState(false);
+  const [puedeScrollDer, setPuedeScrollDer] = useState(false);
+
+  const actualizarScrollState = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setPuedeScrollIzq(el.scrollLeft > 4);
+    setPuedeScrollDer(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  }, []);
+
+  useEffect(() => {
+    actualizarScrollState();
+    window.addEventListener('resize', actualizarScrollState);
+    return () => window.removeEventListener('resize', actualizarScrollState);
+  }, [actualizarScrollState, tabsVisibles.length]);
+
+  const desplazarTabs = (direccion) => {
+    scrollRef.current?.scrollBy({ left: direccion * 200, behavior: 'smooth' });
+  };
+
   if (tabsVisibles.length === 0) {
     return (
       <PageWrapper>
@@ -135,7 +159,11 @@ export default function LayoutReportes() {
 
       {/* Navegación Horizontal de Pestañas tipo SaaS */}
       <div className="relative mb-6 border-b border-zinc-200 dark:border-zinc-800">
-        <div className="flex overflow-x-auto gap-1 sm:gap-2 pb-2 sin-scrollbar">
+        <div
+          ref={scrollRef}
+          onScroll={actualizarScrollState}
+          className="flex overflow-x-auto gap-1 sm:gap-2 pb-2 sin-scrollbar"
+        >
           {tabsVisibles.map(tab => (
             <button
               key={tab.id}
@@ -151,9 +179,34 @@ export default function LayoutReportes() {
             </button>
           ))}
         </div>
-        {/* Degradados en los bordes que insinúan que hay más pestañas por scrollear (móvil) */}
-        <div className="sm:hidden pointer-events-none absolute top-0 left-0 h-full w-6 bg-gradient-to-r from-gray-100 dark:from-zinc-950 to-transparent" />
-        <div className="sm:hidden pointer-events-none absolute top-0 right-0 h-full w-6 bg-gradient-to-l from-gray-100 dark:from-zinc-950 to-transparent" />
+
+        {/* Aviso + acceso rápido de que hay más pestañas por scrollear, en cualquier tamaño de pantalla */}
+        {puedeScrollIzq && (
+          <>
+            <div className="pointer-events-none absolute top-0 left-0 h-[calc(100%-8px)] w-8 bg-gradient-to-r from-gray-100 dark:from-zinc-950 to-transparent" />
+            <button
+              type="button"
+              onClick={() => desplazarTabs(-1)}
+              aria-label="Ver pestañas anteriores"
+              className="absolute left-0 top-1/2 -translate-y-1/2 -mt-1 z-10 hidden sm:flex items-center justify-center w-7 h-7 rounded-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 shadow-sm text-zinc-500 hover:text-emerald-600 hover:border-emerald-300"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
+            </button>
+          </>
+        )}
+        {puedeScrollDer && (
+          <>
+            <div className="pointer-events-none absolute top-0 right-0 h-[calc(100%-8px)] w-8 bg-gradient-to-l from-gray-100 dark:from-zinc-950 to-transparent" />
+            <button
+              type="button"
+              onClick={() => desplazarTabs(1)}
+              aria-label="Ver más pestañas"
+              className="absolute right-0 top-1/2 -translate-y-1/2 -mt-1 z-10 hidden sm:flex items-center justify-center w-7 h-7 rounded-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 shadow-sm text-zinc-500 hover:text-emerald-600 hover:border-emerald-300"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
+            </button>
+          </>
+        )}
       </div>
 
       {/* Contenido Dinámico de la Pestaña Activa */}

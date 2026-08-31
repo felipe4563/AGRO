@@ -13,7 +13,6 @@ function Toast({ toast }) {
         ? 'bg-green-50 dark:bg-green-900/40 border-green-200 dark:border-green-700 text-green-800 dark:text-green-300'
         : 'bg-red-50 dark:bg-red-900/40 border-red-200 dark:border-red-700 text-red-800 dark:text-red-300'
     }`}>
-      <span className="shrink-0">{toast.tipo === 'ok' ? '✅' : '⚠️'}</span>
       <span className="break-words">{toast.msg}</span>
     </div>
   );
@@ -230,7 +229,7 @@ export default function Promociones() {
 
       <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-zinc-900 dark:text-white flex items-center gap-2">🔥 Promociones</h1>
+          <h1 className="text-xl font-bold text-zinc-900 dark:text-white flex items-center gap-2">Promociones</h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Descuentos por rango de fechas, aplicados automáticamente en el POS.</p>
         </div>
         {puede('crear', 'promociones') && (
@@ -268,7 +267,7 @@ export default function Promociones() {
                 {new Date(p.fecha_inicio).toLocaleDateString()} — {new Date(p.fecha_fin).toLocaleDateString()}
               </p>
               <div className="mt-3 text-xs text-zinc-600 dark:text-zinc-300 space-y-0.5">
-                {p.clasificaciones.map((c) => <p key={c.id_clasificacion}>📁 {c.clasificacion_nombre} (categoría completa)</p>)}
+                {p.clasificaciones.map((c) => <p key={c.id_clasificacion}>{c.clasificacion_nombre} (categoría completa)</p>)}
                 {p.productos.map((pr) => <p key={pr.id_producto}>• {pr.producto_nombre}</p>)}
               </div>
               <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-end gap-2">

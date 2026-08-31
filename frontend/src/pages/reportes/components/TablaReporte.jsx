@@ -37,13 +37,13 @@ export default function TablaReporte({ columnas, datos, cargando }) {
 
       {/* ── Tablet / escritorio: tabla ── */}
       <div className="hidden sm:block overflow-x-auto w-full">
-        <table className="w-full text-left text-sm whitespace-nowrap">
+        <table className="w-full text-left text-xs md:text-sm table-auto">
           <thead>
             <tr className="bg-zinc-50 dark:bg-zinc-800/50 border-b border-zinc-200 dark:border-zinc-800">
               {columnas.map((col, idx) => (
                 <th
                   key={idx}
-                  className={`px-4 py-3 font-semibold text-zinc-600 dark:text-zinc-300 ${col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'}`}
+                  className={`px-2.5 py-2.5 md:px-4 md:py-3 font-semibold text-zinc-600 dark:text-zinc-300 whitespace-normal break-words ${col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'}`}
                 >
                   {col.header}
                 </th>
@@ -56,7 +56,7 @@ export default function TablaReporte({ columnas, datos, cargando }) {
                 {columnas.map((col, colIdx) => (
                   <td
                     key={colIdx}
-                    className={`px-4 py-3 text-zinc-900 dark:text-zinc-100 ${col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'}`}
+                    className={`px-2.5 py-2.5 md:px-4 md:py-3 text-zinc-900 dark:text-zinc-100 whitespace-normal break-words ${col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'}`}
                   >
                     {col.render ? col.render(fila[col.key], fila) : fila[col.key]}
                   </td>

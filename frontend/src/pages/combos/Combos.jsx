@@ -22,7 +22,6 @@ function Toast({ toast }) {
         ? 'bg-green-50 dark:bg-green-900/40 border-green-200 dark:border-green-700 text-green-800 dark:text-green-300'
         : 'bg-red-50 dark:bg-red-900/40 border-red-200 dark:border-red-700 text-red-800 dark:text-red-300'
     }`}>
-      <span className="shrink-0">{toast.tipo === 'ok' ? '✅' : '⚠️'}</span>
       <span className="break-words">{toast.msg}</span>
     </div>
   );
@@ -217,7 +216,7 @@ function ModalImagenCombo({ combo, onSubir, onEliminar, onClose, guardando }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800 w-full max-w-sm overflow-hidden">
+      <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800 w-full max-w-sm max-h-[90vh] overflow-y-auto overflow-x-hidden">
         <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
           <div>
             <h3 className="text-lg font-bold text-zinc-900 dark:text-white">Imagen del Combo</h3>
@@ -297,7 +296,7 @@ function ModalImagenCombo({ combo, onSubir, onEliminar, onClose, guardando }) {
           </div>
 
           {archivo && (
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate">📎 {archivo.name} ({(archivo.size / 1024).toFixed(0)} KB)</p>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate">{archivo.name} ({(archivo.size / 1024).toFixed(0)} KB)</p>
           )}
         </div>
 
@@ -445,7 +444,7 @@ export default function Combos() {
 
       <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-zinc-900 dark:text-white flex items-center gap-2">🎁 Combos</h1>
+          <h1 className="text-xl font-bold text-zinc-900 dark:text-white flex items-center gap-2">Combos</h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Paquetes de productos a precio fijo, disponibles en el POS.</p>
         </div>
         {puede('crear', 'combos') && (

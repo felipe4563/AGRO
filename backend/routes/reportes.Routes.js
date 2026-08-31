@@ -42,6 +42,7 @@ router.get('/compras/:tipo', requireDynamicPermission({
 // RUTAS DE INVENTARIO
 // ==========================================
 router.get('/inventario/:tipo', requireDynamicPermission({
+  'global': 'inventario',
   'actual': 'inventario',
   'valorizado': 'inventario_valorizado',
   'stock_bajo': 'stock_bajo',

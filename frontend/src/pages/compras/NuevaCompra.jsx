@@ -4,18 +4,30 @@ import PageWrapper from '../../components/PageWrapper';
 import compraService from '../../services/compra.service';
 import proveedorService from '../../services/proveedor.service';
 import productoService from '../../services/producto.service';
+import catalogoService from '../../services/catalogo.service';
+import { ModalCrearEditar, ModalImagen } from '../productos/components/ProductoModals';
 import { useAuth } from '../../contexts/AuthContext';
+import { usePermission } from '../../hooks/usePermission';
 
 export default function NuevaCompra() {
   const navigate = useNavigate();
   const { usuario } = useAuth();
+  const { puede } = usePermission();
 
   const [proveedores, setProveedores] = useState([]);
   const [productos, setProductos] = useState([]);
   const [sucursales, setSucursales] = useState([]);
+  const [clasificaciones, setClasificaciones] = useState([]);
+  const [marcas, setMarcas] = useState([]);
+  const [unidades, setUnidades] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState(null);
+
+  // Alta rápida de producto nuevo sin salir de la compra
+  const [modalNuevoProducto, setModalNuevoProducto] = useState(false);
+  const [productoRecienCreado, setProductoRecienCreado] = useState(null);
+  const [guardandoProducto, setGuardandoProducto] = useState(false);
 
   // Cabecera
   const [idProveedor, setIdProveedor] = useState('');
@@ -25,6 +37,7 @@ export default function NuevaCompra() {
   const [observaciones, setObservaciones] = useState('');
   const [descuento, setDescuento] = useState(0);
   const [metodoPago, setMetodoPago] = useState('EFECTIVO');
+  const [montoPagado, setMontoPagado] = useState(0);
 
   // Detalle
   const [detalles, setDetalles] = useState([]);
@@ -64,19 +77,56 @@ export default function NuevaCompra() {
 
   const cargarCatalogos = async () => {
     try {
-      const [provRes, prodRes, sucRes] = await Promise.all([
+      const [provRes, prodRes, sucRes, clasRes, marRes, uniRes] = await Promise.all([
         proveedorService.listar(),
         productoService.listar(),
-        compraService.listarSucursalesDestino()
+        compraService.listarSucursalesDestino(),
+        catalogoService.listarClasificaciones(),
+        catalogoService.listarMarcas(),
+        catalogoService.listarUnidades()
       ]);
       setProveedores(provRes.data.filter(p => p.activo === 1));
       setProductos(prodRes.data.filter(p => p.activo === 1));
       setSucursales(sucRes.data);
+      setClasificaciones(clasRes.data);
+      setMarcas(marRes.data);
+      setUnidades(uniRes.data);
       setIdSucursalDestino(String(usuario?.id_sucursal || ''));
     } catch (err) {
       setError('Error al cargar catálogos. Intente recargar.');
     } finally {
       setCargando(false);
+    }
+  };
+
+  // Crea el producto, lo agrega al catálogo local y lo deja preseleccionado
+  // en el formulario de ítem; a continuación se ofrece subirle una imagen.
+  const handleCrearProductoNuevo = async (formData) => {
+    setGuardandoProducto(true);
+    try {
+      const res = await productoService.crear(formData);
+      const nuevoProducto = { ...formData, id_producto: res.data.id_producto, activo: 1 };
+      setProductos(prev => [...prev, nuevoProducto]);
+      seleccionarProducto(nuevoProducto);
+      setModalNuevoProducto(false);
+      setProductoRecienCreado(nuevoProducto);
+    } catch (err) {
+      alert(err.response?.data?.error || 'Error al crear el producto');
+    } finally {
+      setGuardandoProducto(false);
+    }
+  };
+
+  const handleSubirImagenNuevoProducto = async (formDataImagen) => {
+    if (!productoRecienCreado) return;
+    setGuardandoProducto(true);
+    try {
+      await productoService.subirImagen(productoRecienCreado.id_producto, formDataImagen);
+      setProductoRecienCreado(null);
+    } catch (err) {
+      alert(err.response?.data?.error || 'Error al subir la imagen');
+    } finally {
+      setGuardandoProducto(false);
     }
   };
 
@@ -143,6 +193,7 @@ export default function NuevaCompra() {
         nro_factura: nroFactura,
         fecha_compra: fechaCompra,
         metodo_pago: metodoPago,
+        monto_pagado: metodoPago === 'CREDITO' ? parseFloat(montoPagado || 0) : calcTotalGeneral(),
         observaciones,
         subtotal: calcSubtotalGeneral(),
         descuento: parseFloat(descuento || 0),
@@ -249,9 +300,24 @@ export default function NuevaCompra() {
                 <option value="EFECTIVO">Efectivo</option>
                 <option value="TRANSFERENCIA">Transferencia</option>
                 <option value="QR">QR</option>
+                <option value="CREDITO">Crédito (proveedor)</option>
                 <option value="OTRO">Otro</option>
               </select>
             </div>
+
+            {metodoPago === 'CREDITO' && (
+              <div>
+                <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1">Anticipo pagado (Bs)</label>
+                <input
+                  type="number" min="0" step="0.5"
+                  value={montoPagado}
+                  onChange={(e) => setMontoPagado(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-emerald-500/50 outline-none"
+                />
+                <p className="text-xs text-zinc-400 mt-1">El saldo restante quedará en Cuentas por Pagar.</p>
+              </div>
+            )}
 
             <div>
               <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1">Observaciones</label>
@@ -274,7 +340,19 @@ export default function NuevaCompra() {
             
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
               <div className="sm:col-span-2 lg:col-span-4 relative">
-                <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1">Producto *</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400">Producto *</label>
+                  {puede('crear', 'productos') && (
+                    <button
+                      type="button"
+                      onClick={() => setModalNuevoProducto(true)}
+                      className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 flex items-center gap-1"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+                      Nuevo producto
+                    </button>
+                  )}
+                </div>
                 <input
                   type="text"
                   placeholder="Buscar producto por nombre o código de barras..."
@@ -469,6 +547,28 @@ export default function NuevaCompra() {
           </div>
         </div>
       </div>
+
+      {modalNuevoProducto && (
+        <ModalCrearEditar
+          producto={null}
+          clasificaciones={clasificaciones}
+          marcas={marcas}
+          unidades={unidades}
+          onConfirm={handleCrearProductoNuevo}
+          onClose={() => setModalNuevoProducto(false)}
+          guardando={guardandoProducto}
+        />
+      )}
+
+      {productoRecienCreado && (
+        <ModalImagen
+          producto={productoRecienCreado}
+          onSubir={handleSubirImagenNuevoProducto}
+          onEliminar={() => {}}
+          onClose={() => setProductoRecienCreado(null)}
+          guardando={guardandoProducto}
+        />
+      )}
     </PageWrapper>
   );
 }

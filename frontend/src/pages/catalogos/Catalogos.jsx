@@ -13,7 +13,6 @@ function Toast({ toast }) {
         ? 'bg-green-50 dark:bg-green-900/40 border-green-200 dark:border-green-700 text-green-800 dark:text-green-300'
         : 'bg-red-50 dark:bg-red-900/40 border-red-200 dark:border-red-700 text-red-800 dark:text-red-300'
     }`}>
-      <span className="shrink-0">{toast.tipo === 'ok' ? '✅' : '⚠️'}</span>
       <span className="break-words">{toast.msg}</span>
     </div>
   );
@@ -148,7 +147,7 @@ export default function Catalogos() {
       <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-zinc-900 dark:text-white flex items-center gap-2">
-            🏷️ Gestión de Catálogos
+            Gestión de Catálogos
           </h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
             Administra las clasificaciones, marcas y unidades.
@@ -168,7 +167,7 @@ export default function Catalogos() {
       </div>
 
       {/* TABS */}
-      <div className="flex space-x-1 bg-zinc-100 dark:bg-zinc-800/50 p-1 rounded-xl mb-6 max-w-fit">
+      <div className="flex flex-wrap gap-1 bg-zinc-100 dark:bg-zinc-800/50 p-1 rounded-xl mb-6 max-w-fit">
         <button
           onClick={() => setActiveTab('clasificaciones')}
           className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${

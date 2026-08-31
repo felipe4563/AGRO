@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { usePermission } from '../../../hooks/usePermission';
 import reporteService from '../../../services/reporte.service';
 import FiltrosAvanzados from '../components/FiltrosAvanzados';
@@ -10,6 +10,7 @@ export default function VistaInventario() {
 
   const SUB_TABS = [
     { id: 'actual', label: 'Inventario Actual', permiso: 'inventario' },
+    { id: 'global', label: 'Por Sucursal', permiso: 'inventario' },
     { id: 'valorizado', label: 'Inventario Valorizado', permiso: 'inventario_valorizado' },
     { id: 'stock_bajo', label: 'Stock Bajo', permiso: 'stock_bajo' },
     { id: 'vencimientos', label: 'Próximos a Vencer', permiso: 'vencimientos' },
@@ -26,9 +27,10 @@ export default function VistaInventario() {
   const [catalogos, setCatalogos] = useState({ productos: [] });
 
   useEffect(() => {
-    reporteService.catalogos.productos().then(res => {
-      setCatalogos({ productos: res.data });
-    }).catch(() => {});
+    reporteService.catalogos.productos().then(res => setCatalogos(prev => ({ ...prev, productos: res.data }))).catch(() => {});
+    reporteService.catalogos.sucursales().then(res => setCatalogos(prev => ({ ...prev, sucursales: res.data }))).catch(() => {});
+    reporteService.catalogos.marcas().then(res => setCatalogos(prev => ({ ...prev, marcas: res.data }))).catch(() => {});
+    reporteService.catalogos.clasificaciones().then(res => setCatalogos(prev => ({ ...prev, clasificaciones: res.data }))).catch(() => {});
   }, []);
 
   const solicitudIdRef = useRef(0);
@@ -66,11 +68,83 @@ export default function VistaInventario() {
 
   const opcionesFiltros = {
     fechas: false,
-    productos: activeTab === 'kardex'
+    productos: activeTab === 'kardex' || activeTab === 'global',
+    marcas: activeTab === 'global',
+    categorias: activeTab === 'global'
   };
+
+  // Filtro escalonado: al elegir marca y/o categoría, la lista de productos
+  // del select se reduce a los que coinciden (solo aplica al tab 'global').
+  const productosFiltrados = useMemo(() => {
+    if (activeTab !== 'global') return catalogos.productos || [];
+    return (catalogos.productos || []).filter(p =>
+      (!filtros.id_marca || String(p.id_marca) === String(filtros.id_marca)) &&
+      (!filtros.id_clasificacion || String(p.id_clasificacion) === String(filtros.id_clasificacion))
+    );
+  }, [activeTab, catalogos.productos, filtros.id_marca, filtros.id_clasificacion]);
 
   const getColumnas = () => {
     switch (activeTab) {
+      case 'global': {
+        const columnasGlobales = [
+          { key: 'nombre', header: 'PRODUCTO' },
+          { key: 'categoria', header: 'CATEGORÍA', render: v => <span className="text-zinc-500">{v || 'Sin Categoría'}</span> },
+        ];
+
+        // Extraer sucursales únicas desde los datos (o usar el catálogo si existe)
+        const sucursalesMap = new Map();
+        if (catalogos.sucursales && catalogos.sucursales.length > 0) {
+           catalogos.sucursales.forEach(s => sucursalesMap.set(s.id_sucursal, s));
+        } else {
+           datos.forEach(row => {
+             const detalle = Array.isArray(row.detalle_sucursales) ? row.detalle_sucursales :
+                             (typeof row.detalle_sucursales === 'string' ? JSON.parse(row.detalle_sucursales || '[]') : []);
+             detalle.forEach(d => {
+               if (!sucursalesMap.has(d.id_sucursal)) {
+                 sucursalesMap.set(d.id_sucursal, { id_sucursal: d.id_sucursal, nombre: d.sucursal_nombre, ciudad: d.ciudad || '' });
+               }
+             });
+           });
+        }
+
+        const sucursalesArray = Array.from(sucursalesMap.values()).sort((a, b) => a.nombre.localeCompare(b.nombre));
+
+        sucursalesArray.forEach(suc => {
+          columnasGlobales.push({
+            key: `sucursal_${suc.id_sucursal}`,
+            header: (
+              <div className="text-center">
+                <span className="text-emerald-600 font-bold uppercase block">{suc.nombre}</span>
+                {suc.ciudad && <span className="text-[9px] text-zinc-400 font-normal">{suc.ciudad}</span>}
+              </div>
+            ),
+            exportHeader: suc.nombre,
+            align: 'center',
+            render: (_, r) => {
+              const detalle = Array.isArray(r.detalle_sucursales) ? r.detalle_sucursales :
+                              (typeof r.detalle_sucursales === 'string' ? JSON.parse(r.detalle_sucursales || '[]') : []);
+              const sucData = detalle.find(d => d.id_sucursal === suc.id_sucursal);
+              return <span className={sucData?.stock > 0 ? "text-emerald-600 font-bold" : "text-zinc-300"}>{sucData?.stock > 0 ? sucData.stock : '—'}</span>;
+            },
+            excelValue: (r) => {
+              const detalle = Array.isArray(r.detalle_sucursales) ? r.detalle_sucursales :
+                              (typeof r.detalle_sucursales === 'string' ? JSON.parse(r.detalle_sucursales || '[]') : []);
+              const sucData = detalle.find(d => d.id_sucursal === suc.id_sucursal);
+              return sucData ? sucData.stock : 0;
+            }
+          });
+        });
+
+        columnasGlobales.push({ 
+          key: 'stock_total_unidades', 
+          header: 'TOTAL', 
+          align: 'center', 
+          render: v => <span className="font-bold text-black dark:text-white">{v || 0}</span>, 
+          excelValue: r => r.stock_total_unidades || 0 
+        });
+
+        return columnasGlobales;
+      }
       case 'actual':
         return [
           { key: 'codigo_barras', header: 'Código', render: v => v || 'N/A' },
@@ -147,21 +221,31 @@ export default function VistaInventario() {
         ))}
       </div>
 
-      <FiltrosAvanzados 
-        filtros={filtros} 
-        setFiltros={setFiltros} 
-        onBuscar={buscarDatos} 
+      <FiltrosAvanzados
+        filtros={filtros}
+        setFiltros={setFiltros}
+        onBuscar={buscarDatos}
         cargando={cargando}
         opciones={opcionesFiltros}
-        catalogos={catalogos}
+        catalogos={{ ...catalogos, productos: productosFiltrados }}
       />
 
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white dark:bg-zinc-900 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
         <div className="flex gap-6">
           <div>
-            <p className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold mb-1">Registros</p>
+            <p className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold mb-1">
+              {activeTab === 'global' ? 'Productos Distintos' : 'Registros'}
+            </p>
             <p className="text-xl font-black text-zinc-900 dark:text-white">{resumen?.total_registros || 0}</p>
           </div>
+          {activeTab === 'global' && resumen?.unidades_total !== undefined && (
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold mb-1">Unidades Totales</p>
+              <p className="text-xl font-black text-emerald-600 dark:text-emerald-400">
+                {resumen.unidades_total} u
+              </p>
+            </div>
+          )}
           {resumen?.valor_total !== undefined && (
             <div>
               <p className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold mb-1">Costo Total del Almacén</p>
@@ -172,7 +256,13 @@ export default function VistaInventario() {
           )}
         </div>
         
-        <BotonesExportar datos={datos} columnas={getColumnas()} titulo={`Reporte_Inventario_${tituloActual.replace(/\s+/g, '_')}`} />
+        <BotonesExportar 
+          datos={datos} 
+          columnas={getColumnas()} 
+          titulo={`Reporte_Inventario_${tituloActual.replace(/\s+/g, '_')}`} 
+          resumen={resumen}
+          subtitulo={`Filtros aplicados: ${filtros.id_producto ? 'Producto específico' : 'Todos los productos'}`}
+        />
       </div>
 
       <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm">

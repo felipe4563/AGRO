@@ -4,7 +4,7 @@ const { mensajeSeguro } = require('../utils/errorHandler');
 const listarLotes = async (req, res) => {
   try {
     const [rows] = await db.promise().query(
-      `SELECT l.*, p.nombre as producto_nombre, p.codigo_barras, p.stock_minimo,
+      `SELECT l.*, p.nombre as producto_nombre, p.codigo_barras as producto_codigo_barras, p.stock_minimo,
               p.precio_menor, p.precio_mayor, p.descuento_menor, p.descuento_mayor,
               m.nombre as marca_nombre, c.nombre as clasificacion_nombre,
               s.nombre as sucursal_nombre
@@ -16,6 +16,9 @@ const listarLotes = async (req, res) => {
        WHERE l.activo = 1
        ORDER BY l.fecha_vencimiento ASC, l.id_lote DESC`
     );
+    if (!req.ability.can('ver_costo_lote', 'almacen')) {
+      rows.forEach(r => { delete r.precio_por_caja; });
+    }
     return res.json(rows);
   } catch (err) {
     console.error('[listarLotes]', err);
@@ -49,6 +52,33 @@ const obtenerLote = async (req, res) => {
   } catch (err) {
     console.error('[obtenerLote]', err);
     return res.status(500).json({ error: 'Error al obtener detalle del lote' });
+  }
+};
+
+// Genera y guarda un código de barras propio del lote, si todavía no tiene
+// (lotes creados antes de esta función, o cuyo código se quiera reimprimir).
+const generarCodigoBarrasLote = async (req, res) => {
+  const { id } = req.params;
+  const idLoteNum = Number(id);
+  if (!idLoteNum) return res.status(400).json({ error: 'ID inválido' });
+
+  try {
+    const [rows] = await db.promise().query('SELECT codigo_barras FROM lote WHERE id_lote = ? LIMIT 1', [idLoteNum]);
+    if (rows.length === 0) return res.status(404).json({ error: 'Lote no encontrado' });
+
+    if (rows[0].codigo_barras) {
+      return res.json({ codigo_barras: rows[0].codigo_barras, generado: false });
+    }
+
+    // Mismo esquema determinístico que al confirmar una compra: 800000000 + id_lote,
+    // fuera del rango de los códigos de producto (900000 + id_producto).
+    const codigo = String(800000000 + idLoteNum);
+    await db.promise().query('UPDATE lote SET codigo_barras = ? WHERE id_lote = ?', [codigo, idLoteNum]);
+
+    return res.json({ codigo_barras: codigo, generado: true });
+  } catch (err) {
+    console.error('[generarCodigoBarrasLote]', err);
+    return res.status(500).json({ error: 'Error al generar el código de barras del lote' });
   }
 };
 
@@ -378,19 +408,22 @@ const listarAlertas = async (req, res) => {
        WHERE l.activo = 1 AND p.stock_minimo > 0 AND l.stock_unidades < p.stock_minimo
        ORDER BY l.stock_unidades ASC`
     );
-    const [proxVencer] = await db.promise().query(
-      `SELECT l.id_lote, l.numero_lote, l.fecha_vencimiento, l.stock_unidades,
-        p.nombre as producto_nombre,
-        s.nombre as sucursal_nombre,
-        DATEDIFF(l.fecha_vencimiento, CURDATE()) as dias_restantes
-       FROM lote l
-       JOIN producto p ON l.id_producto = p.id_producto
-       JOIN sucursal s ON l.id_sucursal = s.id_sucursal
-       WHERE l.activo = 1 AND l.fecha_vencimiento IS NOT NULL
-         AND l.fecha_vencimiento <= DATE_ADD(CURDATE(), INTERVAL 30 DAY)
-         AND l.stock_unidades > 0
-       ORDER BY l.fecha_vencimiento ASC`
-    );
+    let proxVencer = [];
+    if (req.ability.can('ver_vencimientos', 'almacen')) {
+      [proxVencer] = await db.promise().query(
+        `SELECT l.id_lote, l.numero_lote, l.fecha_vencimiento, l.stock_unidades,
+          p.nombre as producto_nombre,
+          s.nombre as sucursal_nombre,
+          DATEDIFF(l.fecha_vencimiento, CURDATE()) as dias_restantes
+         FROM lote l
+         JOIN producto p ON l.id_producto = p.id_producto
+         JOIN sucursal s ON l.id_sucursal = s.id_sucursal
+         WHERE l.activo = 1 AND l.fecha_vencimiento IS NOT NULL
+           AND l.fecha_vencimiento <= DATE_ADD(CURDATE(), INTERVAL 30 DAY)
+           AND l.stock_unidades > 0
+         ORDER BY l.fecha_vencimiento ASC`
+      );
+    }
     return res.json({ bajo_stock: bajoStock, prox_vencer: proxVencer });
   } catch (err) {
     console.error('[listarAlertas]', err);
@@ -425,6 +458,7 @@ const listarSucursalesActivas = async (req, res) => {
 module.exports = {
   listarLotes,
   obtenerLote,
+  generarCodigoBarrasLote,
   ajusteInventario,
   crearLote,
   darBajaLote,

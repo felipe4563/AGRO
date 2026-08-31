@@ -23,11 +23,11 @@ function RolCard({ rol, activo, onClick }) {
           <div className="flex items-center gap-3 mt-1.5">
             <span className={`text-xs ${activo
               ? 'text-zinc-700' : 'text-zinc-500 dark:text-zinc-400'}`}>
-              🔑 {rol.total_permisos} permisos
+              {rol.total_permisos} permisos
             </span>
             <span className={`text-xs ${activo
               ? 'text-zinc-700' : 'text-zinc-500 dark:text-zinc-400'}`}>
-              👥 {rol.total_usuarios} usuarios
+              {rol.total_usuarios} usuarios
             </span>
           </div>
         </div>

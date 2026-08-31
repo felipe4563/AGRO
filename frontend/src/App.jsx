@@ -33,8 +33,9 @@ import TicketResumenCaja from './pages/caja/TicketResumenCaja';
 import LibroCaja      from './pages/caja/LibroCaja';
 import CuentasPorCobrar from './pages/cobros/CuentasPorCobrar';
 import TicketCobro      from './pages/cobros/TicketCobro';
+import CuentasPorPagar  from './pages/cuentas-pagar/CuentasPorPagar';
+import TicketPago       from './pages/cuentas-pagar/TicketPago';
 import LayoutReportes from './pages/reportes/LayoutReportes';
-import Backups        from './pages/backups/Backups';
 import Configuracion  from './pages/configuracion/Configuracion';
 import Perfil          from './pages/perfil/Perfil';
 
@@ -52,6 +53,14 @@ function AppLayout({ children }) {
   useEffect(() => {
     setDrawerAbierto(false);
   }, [location.pathname]);
+
+  // El POS de ventas maneja su propio layout a pantalla completa (paneles con
+  // scroll interno propio). Si además le agregamos el padding/min-h-full que
+  // usan las páginas normales, su h-screen interno queda más alto que el
+  // espacio real disponible bajo el Topbar y hay que deslizar la página
+  // entera para llegar al botón de cobrar. Por eso aquí no se le pone padding
+  // y se le da el alto exacto disponible (h-full) en vez de h-screen.
+  const esFullBleed = location.pathname === '/ventas/nueva';
 
   const ocultarSidebar = () => {
     setOculto(true);
@@ -84,10 +93,11 @@ function AppLayout({ children }) {
       />
       <div className="flex-1 flex flex-col overflow-hidden">
         <Topbar onAbrirMenu={alternarMenu} />
-        <main className="flex-1 overflow-y-auto sin-scrollbar
+        <main className={`flex-1 sin-scrollbar
                          bg-gray-100  dark:bg-zinc-950
-                         transition-colors duration-300">
-          <div className="px-4 sm:px-6 py-4 sm:py-6 min-h-full">
+                         transition-colors duration-300
+                         ${esFullBleed ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+          <div className={esFullBleed ? 'h-full' : 'px-4 sm:px-6 py-4 sm:py-6 min-h-full'}>
             {children}
           </div>
         </main>
@@ -242,6 +252,19 @@ export default function App() {
               </ProtectedRoute>
             }/>
 
+            {/* ── Cuentas por Pagar ────────────────────────────────────── */}
+            <Route path="/cuentas-pagar" element={
+              <PageRoute action="ver" subject="cuentas_pagar">
+                <CuentasPorPagar />
+              </PageRoute>
+            }/>
+            {/* Sin AppLayout: página full-screen para impresión 80mm */}
+            <Route path="/cuentas-pagar/pagos/:id/ticket" element={
+              <ProtectedRoute action="ver" subject="cuentas_pagar">
+                <TicketPago />
+              </ProtectedRoute>
+            }/>
+
             {/* ── Caja ───────────────────────────────────────────────── */}
             <Route path="/caja" element={
               <PageRoute action="ver" subject="caja">
@@ -287,13 +310,6 @@ export default function App() {
                   <LayoutReportes />
                 </AppLayout>
               </ProtectedRoute>
-            }/>
-
-            {/* ── Backups ────────────────────────────────────────────── */}
-            <Route path="/backups" element={
-              <PageRoute action="ver" subject="roles">
-                <Backups />
-              </PageRoute>
             }/>
 
             {/* ── Configuración del negocio ────────────────────────────── */}

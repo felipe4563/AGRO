@@ -185,14 +185,12 @@ export default function VistaGanancias() {
 
                   {/* KPIs de hoy */}
                   <div className="bg-white dark:bg-zinc-900 rounded-xl p-4 border border-zinc-200 dark:border-zinc-800 shadow-sm flex items-center gap-4">
-                    <span className="text-3xl">📦</span>
                     <div>
                       <p className="text-xs text-zinc-500 uppercase font-bold">Ventas Hoy</p>
                       <p className="text-xl font-black text-zinc-900 dark:text-white">{financiero.ventas_hoy_cantidad}</p>
                     </div>
                   </div>
                   <div className="bg-white dark:bg-zinc-900 rounded-xl p-4 border border-zinc-200 dark:border-zinc-800 shadow-sm flex items-center gap-4">
-                    <span className="text-3xl">💰</span>
                     <div>
                       <p className="text-xs text-zinc-500 uppercase font-bold">Ingresos Hoy</p>
                       <p className="text-xl font-black text-emerald-600">Bs {parseFloat(financiero.ingresos_hoy).toLocaleString('en-US', {minimumFractionDigits: 2})}</p>
@@ -244,9 +242,9 @@ export default function VistaGanancias() {
               </div>
 
               <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm p-6">
-                <div className="flex justify-between items-center mb-6">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6">
                   <h3 className="font-bold text-lg text-zinc-900 dark:text-white flex items-center gap-2">
-                    🏆 Top 10 Productos — {ordenarPor === 'ingresos' ? 'Por Ingresos (Bs)' : 'Por Unidades Vendidas'}
+                    Top 10 Productos — {ordenarPor === 'ingresos' ? 'Por Ingresos (Bs)' : 'Por Unidades Vendidas'}
                   </h3>
                   <BotonesExportar
                     datos={topProductos}
@@ -324,6 +322,8 @@ export default function VistaGanancias() {
                 </div>
                 <BotonesExportar
                   datos={datosGanancia}
+                  resumen={resumenGanancia}
+                  subtitulo={`Filtros aplicados: ${filtros.fechaInicio ? `Desde ${filtros.fechaInicio} Hasta ${filtros.fechaFin}` : 'Todos los tiempos'}`}
                   columnas={[
                     { key: 'codigo_barras',  header: 'Código',       excelValue: r => r.codigo_barras || 'N/A' },
                     { key: 'nombre',         header: 'Producto',     excelValue: r => r.nombre },

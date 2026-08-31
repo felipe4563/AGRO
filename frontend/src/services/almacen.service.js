@@ -3,6 +3,7 @@ import api from '../api/axios';
 const almacenService = {
   listarLotes:       ()         => api.get('/almacen/lotes'),
   obtenerLote:       (id)       => api.get(`/almacen/lotes/${id}`),
+  generarCodigoBarrasLote: (id) => api.post(`/almacen/lotes/${id}/generar-codigo-barras`),
   crearLote:         (data)     => api.post('/almacen/lotes', data),
   ajustarLote:       (id, data) => api.post(`/almacen/lotes/${id}/ajuste`, data),
   darBajaLote:       (id, data) => api.patch(`/almacen/lotes/${id}/baja`, data),

@@ -2,17 +2,26 @@ const db = require('../config/db');
 const { mensajeSeguro } = require('../utils/errorHandler');
 
 // Listar todas las ventas
+// Por defecto cada vendedor solo ve SUS PROPIAS ventas de la sucursal;
+// 'ventas.ver_todas' habilita ver las de todos los vendedores de la sucursal.
 const listar = async (req, res) => {
   try {
+    const puedeVerTodas = req.ability.can('ver_todas', 'ventas');
+    const params = [req.user.id_sucursal];
+    let filtroUsuario = '';
+    if (!puedeVerTodas) {
+      filtroUsuario = ' AND v.id_usuario = ?';
+      params.push(req.user.id_usuario);
+    }
     const [rows] = await db.promise().query(
       `SELECT v.*, c.nombre as cliente_nombre, c.apellido as cliente_apellido, c.ci_nit,
               u.nombre as usuario_nombre, u.apellido as usuario_apellido
        FROM venta v
        LEFT JOIN cliente c ON v.id_cliente = c.id_cliente
        LEFT JOIN usuario u ON v.id_usuario = u.id_usuario
-       WHERE v.id_sucursal = ?
+       WHERE v.id_sucursal = ?${filtroUsuario}
        ORDER BY v.fecha_venta DESC, v.id_venta DESC`,
-      [req.user.id_sucursal]
+      params
     );
     return res.json(rows);
   } catch (err) {
@@ -22,9 +31,17 @@ const listar = async (req, res) => {
 };
 
 // Obtener detalle completo de una venta
+// Misma regla que listar(): sin 'ventas.ver_todas' solo puede ver el detalle de sus propias ventas.
 const obtener = async (req, res) => {
   const { id } = req.params;
   try {
+    const puedeVerTodas = req.ability.can('ver_todas', 'ventas');
+    const params = [id, req.user.id_sucursal];
+    let filtroUsuario = '';
+    if (!puedeVerTodas) {
+      filtroUsuario = ' AND v.id_usuario = ?';
+      params.push(req.user.id_usuario);
+    }
     const [ventaRows] = await db.promise().query(
       `SELECT v.*,
               c.nombre as cliente_nombre, c.apellido as cliente_apellido, c.ci_nit, c.empresa,
@@ -35,8 +52,8 @@ const obtener = async (req, res) => {
        LEFT JOIN cliente c ON v.id_cliente = c.id_cliente
        LEFT JOIN usuario u ON v.id_usuario = u.id_usuario
        LEFT JOIN sucursal s ON v.id_sucursal = s.id_sucursal
-       WHERE v.id_venta = ? AND v.id_sucursal = ?`,
-      [id, req.user.id_sucursal]
+       WHERE v.id_venta = ? AND v.id_sucursal = ?${filtroUsuario}`,
+      params
     );
 
     if (ventaRows.length === 0) return res.status(404).json({ error: 'Venta no encontrada' });
@@ -44,7 +61,8 @@ const obtener = async (req, res) => {
     const venta = ventaRows[0];
 
     const [detalleRows] = await db.promise().query(
-      `SELECT d.*, p.nombre as producto_nombre, p.codigo_barras, l.numero_lote, c.nombre as combo_nombre
+      `SELECT d.*, p.nombre as producto_nombre, p.codigo_barras, l.numero_lote,
+              l.precio_por_caja, l.unidades_por_caja, c.nombre as combo_nombre
        FROM detalle_venta d
        JOIN producto p ON d.id_producto = p.id_producto
        JOIN lote l ON d.id_lote = l.id_lote
@@ -52,6 +70,22 @@ const obtener = async (req, res) => {
        WHERE d.id_venta = ?`,
       [id]
     );
+
+    // Costo y utilidad: solo se calculan y exponen con el permiso 'ver_costo'.
+    if (req.ability.can('ver_costo', 'ventas')) {
+      let costoTotal = 0;
+      for (const d of detalleRows) {
+        const costoUnitario = d.tipo_cantidad === 'CAJA'
+          ? parseFloat(d.precio_por_caja)
+          : parseFloat(d.precio_por_caja) / parseFloat(d.unidades_por_caja);
+        d.costo_linea = Math.round(costoUnitario * parseFloat(d.cantidad) * 100) / 100;
+        d.utilidad_linea = Math.round((parseFloat(d.subtotal) - d.costo_linea) * 100) / 100;
+        costoTotal += d.costo_linea;
+      }
+      venta.costo_total = Math.round(costoTotal * 100) / 100;
+      venta.utilidad_total = Math.round((parseFloat(venta.subtotal) - venta.costo_total) * 100) / 100;
+    }
+    detalleRows.forEach(d => { delete d.precio_por_caja; delete d.unidades_por_caja; });
 
     venta.detalles = detalleRows;
     return res.json(venta);
@@ -83,6 +117,8 @@ const crear = async (req, res) => {
   const id_usuario = req.user.id_usuario;
   const id_sucursal = req.user.id_sucursal;
   const EPS = 0.01;
+  const puedeCambiarPrecio = req.ability.can('cambiar_precio', 'ventas');
+  const puedeVenderSinStock = req.ability.can('vender_sin_stock', 'ventas');
 
   if (!detalles || detalles.length === 0) {
     return res.status(400).json({ error: 'El carrito de ventas está vacío.' });
@@ -93,8 +129,14 @@ const crear = async (req, res) => {
     }
   }
 
-  // El descuento manual (%) solo es válido si el usuario tiene el permiso correspondiente
-  const descuentoPct = Math.max(0, Math.min(100, parseFloat(detalles[0]?.descuento_pct) || 0));
+  // El descuento manual (%) solo es válido si el usuario tiene el permiso correspondiente.
+  // Sin 'descuento_libre' el % queda topado (igual que el límite ya aplicado en el frontend);
+  // confiar solo en el tope del cliente permitiría a cualquiera con 'aplicar_descuento'
+  // mandar un % arbitrario (hasta 100) directamente contra la API.
+  const LIMITE_DESCUENTO_SIN_LIBRE = 50;
+  const descuentoLibre = req.ability.can('descuento_libre', 'ventas');
+  const topeDescuento = descuentoLibre ? 100 : LIMITE_DESCUENTO_SIN_LIBRE;
+  const descuentoPct = Math.max(0, Math.min(topeDescuento, parseFloat(detalles[0]?.descuento_pct) || 0));
   if (descuentoPct > 0 && !req.ability.can('aplicar_descuento', 'ventas')) {
     return res.status(403).json({ error: 'Sin permiso para aplicar descuentos' });
   }
@@ -214,10 +256,16 @@ const crear = async (req, res) => {
 
       const precioReal = precioRealDe(item.id_producto, item.tipo_cantidad);
       if (precioReal === null) throw new Error(`Producto ID ${item.id_producto} no existe o no tiene unidades_por_caja definidas`);
-      if (Math.abs(parseFloat(item.precio_unitario) - precioReal) > EPS) {
-        throw new Error(`El precio del producto ID ${item.id_producto} no coincide con el catálogo`);
+      const precioEnviado = parseFloat(item.precio_unitario);
+      if (Math.abs(precioEnviado - precioReal) > EPS) {
+        // Solo quien tiene 'cambiar_precio' puede forzar un precio distinto al del catálogo.
+        if (!puedeCambiarPrecio || !(precioEnviado > 0)) {
+          throw new Error(`El precio del producto ID ${item.id_producto} no coincide con el catálogo`);
+        }
+        item.precio_unitario = precioEnviado;
+      } else {
+        item.precio_unitario = precioReal;
       }
-      item.precio_unitario = precioReal;
       item.descuento_pct = descuentoPct;
       item.promocion_pct = promoPctDe(item.id_producto);
       item.subtotal = Math.round(cantidad * precioReal * (1 - descuentoPct / 100) * 100) / 100;
@@ -278,32 +326,36 @@ const crear = async (req, res) => {
     const total = totalReal;
 
     // 1. Validar Stock General antes de insertar la cabecera
-    // Acumular la cantidad total requerida por producto (convirtiendo cajas a unidades si es necesario)
+    // Acumular la cantidad total requerida por producto (convirtiendo cajas a unidades si es necesario).
+    // Los ítems con lote fijado (escaneados por su etiqueta de lote) se procesan
+    // aparte, exactos contra ese lote — no entran al sorteo FIFO por vencimiento.
     const requerimientos = {};
+    const itemsConLoteForzado = [];
     for (const item of detalles) {
+      let unidades_a_descontar_lote = parseFloat(item.cantidad);
+      if (item.tipo_cantidad === 'CAJA') {
+        if (!item.unidades_por_caja) {
+          throw new Error(`Falta el parámetro unidades_por_caja para el producto ID ${item.id_producto} que se vende por CAJA.`);
+        }
+        unidades_a_descontar_lote = parseFloat(item.cantidad) * parseFloat(item.unidades_por_caja);
+      }
+
+      if (item.id_lote_forzado) {
+        itemsConLoteForzado.push({ ...item, unidades_totales: unidades_a_descontar_lote });
+        continue;
+      }
+
       if (!requerimientos[item.id_producto]) {
         requerimientos[item.id_producto] = {
           cantidadRequerida: 0,
           itemsOriginales: [] // Guardamos las referencias para repartir los montos luego
         };
       }
-      
-      // Obtener unidades por caja del producto si el tipo es CAJA
-      let unidades_a_descontar = parseFloat(item.cantidad);
-      if (item.tipo_cantidad === 'CAJA') {
-        // Necesitamos saber cuántas unidades tiene la caja de ese producto.
-        // Asumiremos que el frontend envía item.unidades_por_caja para facilitar, o consultamos el catálogo/lote.
-        // Para mayor precisión, consultaremos la tabla de lotes durante el FIFO, pero como estimación:
-        if (!item.unidades_por_caja) {
-           throw new Error(`Falta el parámetro unidades_por_caja para el producto ID ${item.id_producto} que se vende por CAJA.`);
-        }
-        unidades_a_descontar = parseFloat(item.cantidad) * parseFloat(item.unidades_por_caja);
-      }
 
-      requerimientos[item.id_producto].cantidadRequerida += unidades_a_descontar;
+      requerimientos[item.id_producto].cantidadRequerida += unidades_a_descontar_lote;
       requerimientos[item.id_producto].itemsOriginales.push({
         ...item,
-        unidades_totales: unidades_a_descontar
+        unidades_totales: unidades_a_descontar_lote
       });
     }
 
@@ -323,6 +375,51 @@ const crear = async (req, res) => {
     );
     const id_venta = ventaResult.insertId;
 
+    // 2.1 Ítems con lote fijado (escaneados por su etiqueta de lote): se descuentan
+    // exactos de ese lote. Sin sustituciones silenciosas — si no alcanza, se corta la venta.
+    for (const item of itemsConLoteForzado) {
+      const [loteRows] = await connection.query(
+        'SELECT id_lote, id_producto, stock_unidades, unidades_por_caja, numero_lote FROM lote WHERE id_lote = ? AND id_sucursal = ? AND activo = 1 FOR UPDATE',
+        [item.id_lote_forzado, id_sucursal]
+      );
+      if (loteRows.length === 0) throw new Error(`El lote escaneado no existe o no pertenece a esta sucursal (producto ID ${item.id_producto})`);
+      const lote = loteRows[0];
+      if (lote.id_producto !== item.id_producto) throw new Error(`El lote escaneado no corresponde al producto ID ${item.id_producto}`);
+      if (lote.stock_unidades < item.unidades_totales) {
+        throw new Error(`El lote ${lote.numero_lote || lote.id_lote} no tiene stock suficiente (disponible: ${lote.stock_unidades}, requerido: ${item.unidades_totales})`);
+      }
+
+      const nuevoStockUnidades = lote.stock_unidades - item.unidades_totales;
+      const nuevasCajas = Math.floor(nuevoStockUnidades / lote.unidades_por_caja);
+
+      await connection.query(
+        `INSERT INTO detalle_venta
+          (id_venta, id_lote, id_producto, id_combo, tipo_cantidad, cantidad, precio_unitario, descuento_pct, promocion_pct, descuento_monto, subtotal)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          id_venta, lote.id_lote, item.id_producto, item.id_combo || null, item.tipo_cantidad,
+          item.cantidad, item.precio_unitario, item.descuento_pct || 0, item.promocion_pct || 0,
+          item.descuento_monto || 0, item.subtotal
+        ]
+      );
+
+      await connection.query(
+        'UPDATE lote SET stock_unidades = ?, stock_cajas = ? WHERE id_lote = ?',
+        [nuevoStockUnidades, nuevasCajas, lote.id_lote]
+      );
+
+      await connection.query(
+        `INSERT INTO movimiento_almacen
+          (id_lote, id_sucursal, id_usuario, tipo, motivo, cantidad_cajas, cantidad_unidades, referencia_id, referencia_tipo)
+         VALUES (?, ?, ?, 'SALIDA', 'VENTA (lote escaneado)', ?, ?, ?, 'VENTA')`,
+        [
+          lote.id_lote, id_sucursal, id_usuario,
+          Math.floor(item.unidades_totales / lote.unidades_por_caja), item.unidades_totales,
+          id_venta
+        ]
+      );
+    }
+
     // 3. Procesar FIFO por Producto
     for (const id_producto in requerimientos) {
       let unidadesFaltantes = requerimientos[id_producto].cantidadRequerida;
@@ -339,7 +436,12 @@ const crear = async (req, res) => {
       // Calcular stock total disponible
       const stockDisponible = lotes.reduce((acc, l) => acc + l.stock_unidades, 0);
       if (stockDisponible < unidadesFaltantes) {
-        throw new Error(`Stock insuficiente para el producto ID ${id_producto}. Requerido: ${unidadesFaltantes}, Disponible: ${stockDisponible}`);
+        // 'vender_sin_stock' permite completar la venta igual: el déficit se
+        // carga contra el último lote, que queda en negativo. Sin al menos un
+        // lote existente no hay a qué id_lote asociar el detalle de venta.
+        if (!puedeVenderSinStock || lotes.length === 0) {
+          throw new Error(`Stock insuficiente para el producto ID ${id_producto}. Requerido: ${unidadesFaltantes}, Disponible: ${stockDisponible}`);
+        }
       }
 
       // Descontar FIFO
@@ -398,6 +500,49 @@ const crear = async (req, res) => {
           if (loteActual.stock_unidades === 0) {
             indexLote++;
           }
+        }
+
+        // Se acabaron los lotes reales y aún falta cantidad por descontar:
+        // solo llega aquí con 'vender_sin_stock' ya validado arriba. Se carga
+        // todo el remanente contra el último lote, que queda con stock negativo.
+        if (unidadesItemFaltantes > 0) {
+          const loteActual = lotes[lotes.length - 1];
+          const descontarDeEsteLote = unidadesItemFaltantes;
+
+          loteActual.stock_unidades -= descontarDeEsteLote;
+          unidadesItemFaltantes = 0;
+
+          const proporcion = descontarDeEsteLote / itemOriginal.unidades_totales;
+          const cantParaDetalle = parseFloat(itemOriginal.cantidad) * proporcion;
+          const subtotalDetalle = parseFloat(itemOriginal.subtotal) * proporcion;
+          const descMontoDetalle = parseFloat(itemOriginal.descuento_monto || 0) * proporcion;
+
+          await connection.query(
+            `INSERT INTO detalle_venta
+              (id_venta, id_lote, id_producto, id_combo, tipo_cantidad, cantidad, precio_unitario, descuento_pct, promocion_pct, descuento_monto, subtotal)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              id_venta, loteActual.id_lote, id_producto, itemOriginal.id_combo || null, itemOriginal.tipo_cantidad,
+              cantParaDetalle, itemOriginal.precio_unitario, itemOriginal.descuento_pct || 0, itemOriginal.promocion_pct || 0, descMontoDetalle, subtotalDetalle
+            ]
+          );
+
+          const nuevasCajas = Math.floor(loteActual.stock_unidades / loteActual.unidades_por_caja);
+          await connection.query(
+            'UPDATE lote SET stock_unidades = ?, stock_cajas = ? WHERE id_lote = ?',
+            [loteActual.stock_unidades, nuevasCajas, loteActual.id_lote]
+          );
+
+          await connection.query(
+            `INSERT INTO movimiento_almacen
+              (id_lote, id_sucursal, id_usuario, tipo, motivo, cantidad_cajas, cantidad_unidades, referencia_id, referencia_tipo)
+             VALUES (?, ?, ?, 'SALIDA', 'VENTA SIN STOCK', ?, ?, ?, 'VENTA')`,
+            [
+              loteActual.id_lote, id_sucursal, id_usuario,
+              Math.floor(descontarDeEsteLote / loteActual.unidades_por_caja), descontarDeEsteLote,
+              id_venta
+            ]
+          );
         }
       }
     }
@@ -512,7 +657,10 @@ const anular = async (req, res) => {
     }
 
     // 3. Cambiar estado de la cabecera
-    await connection.query('UPDATE venta SET estado = "ANULADA" WHERE id_venta = ?', [id]);
+    await connection.query(
+      'UPDATE venta SET estado = "ANULADA", fecha_anulacion = NOW(), id_usuario_anulacion = ? WHERE id_venta = ?',
+      [id_usuario, id]
+    );
 
     // 4. Revertir puntos de fidelización ganados por esta venta (si los hubo)
     const id_cliente = ventaRows[0].id_cliente;
@@ -630,7 +778,17 @@ const listarProductosPOS = async (req, res) => {
       };
     });
 
-    return res.json(conPromociones);
+    // Lotes con código de barras propio: al escanear uno, la venta se fija a
+    // ese lote exacto en vez de entrar al sorteo FIFO por vencimiento.
+    const [lotesConCodigo] = await db.promise().query(
+      `SELECT l.id_lote, l.id_producto, l.codigo_barras, l.numero_lote,
+              l.unidades_por_caja, l.stock_unidades
+       FROM lote l
+       WHERE l.id_sucursal = ? AND l.activo = 1 AND l.codigo_barras IS NOT NULL`,
+      [id_sucursal]
+    );
+
+    return res.json({ productos: conPromociones, lotes_con_codigo: lotesConCodigo });
   } catch (err) {
     console.error('[listarProductosPOS]', err);
     return res.status(500).json({ error: 'Error al obtener productos para el POS' });

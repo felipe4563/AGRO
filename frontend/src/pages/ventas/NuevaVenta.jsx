@@ -19,6 +19,11 @@ const METODOS_PAGO = [
   { value: 'OTRO', label: 'Otro' },
 ];
 
+// Tras detectar un código, cuánto tiempo se pausa el lector antes de seguir
+// escaneando. Evita que el mismo código, mientras sigue en cuadro, se agregue
+// decenas de veces por segundo antes de que el usuario mueva la cámara.
+const PAUSA_TRAS_ESCANEO_MS = 1200;
+
 function EscanerCamaraModal({ onDetectado, onClose }) {
   const [error, setError] = useState('');
   // Ref para siempre llamar la versión más reciente del callback sin
@@ -28,11 +33,21 @@ function EscanerCamaraModal({ onDetectado, onClose }) {
 
   useEffect(() => {
     const html5QrCode = new Html5Qrcode('lector-camara-venta');
+    let detenido = false;
+
     html5QrCode
       .start(
         { facingMode: 'environment' },
         { fps: 10, qrbox: { width: 250, height: 150 } },
-        (codigoDetectado) => onDetectadoRef.current(codigoDetectado),
+        (codigoDetectado) => {
+          // Pausar de inmediato: mientras el código siga en cuadro no debe
+          // volver a dispararse hasta que el usuario apunte al siguiente.
+          html5QrCode.pause(true);
+          onDetectadoRef.current(codigoDetectado);
+          setTimeout(() => {
+            if (!detenido) html5QrCode.resume();
+          }, PAUSA_TRAS_ESCANEO_MS);
+        },
         () => {} // errores de frames sin código: ignorar, son normales
       )
       .catch(() => {
@@ -40,15 +55,16 @@ function EscanerCamaraModal({ onDetectado, onClose }) {
       });
 
     return () => {
+      detenido = true;
       html5QrCode.stop().then(() => html5QrCode.clear()).catch(() => {});
     };
   }, []);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="w-full max-w-sm bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-2xl p-4">
+      <div className="w-full max-w-sm max-h-[90vh] overflow-y-auto bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-2xl p-4">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="font-bold text-zinc-900 dark:text-white">📷 Escanear código de barras</h3>
+          <h3 className="font-bold text-zinc-900 dark:text-white">Escanear código de barras</h3>
           <button onClick={onClose} className="p-1.5 text-zinc-500 hover:text-zinc-800 dark:hover:text-white">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -61,8 +77,15 @@ function EscanerCamaraModal({ onDetectado, onClose }) {
           <div id="lector-camara-venta" className="rounded-xl overflow-hidden" />
         )}
         <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-3">
-          Apunta la cámara al código de barras del producto.
+          Apunta la cámara al código de barras del producto. Puedes escanear varios productos
+          seguidos: cada uno se agrega al carrito sin cerrar esta ventana.
         </p>
+        <button
+          onClick={onClose}
+          className="w-full mt-3 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold"
+        >
+          Listo, terminar de escanear
+        </button>
       </div>
     </div>
   );
@@ -76,7 +99,6 @@ function Toast({ toast }) {
         ? 'bg-green-50 dark:bg-green-900/40 border-green-200 dark:border-green-700 text-green-800 dark:text-green-300'
         : 'bg-red-50 dark:bg-red-900/40 border-red-200 dark:border-red-700 text-red-800 dark:text-red-300'
     }`}>
-      <span className="shrink-0">{toast.tipo === 'ok' ? '✅' : '⚠️'}</span>
       <span className="break-words">{toast.msg}</span>
     </div>
   );
@@ -102,6 +124,9 @@ export default function NuevaVenta() {
   const [soloPromociones, setSoloPromociones] = useState(false);
   const busquedaRef = useRef(null);
   const [mostrarEscaner, setMostrarEscaner] = useState(false);
+  // Lotes con código de barras propio (codigo_barras -> {id_lote, id_producto, numero_lote,
+  // unidades_por_caja, stock_unidades}): al escanear uno, la venta se fija a ese lote exacto.
+  const [lotesPorCodigo, setLotesPorCodigo] = useState(new Map());
   const [carrito, setCarrito] = useState([]);
   const [idCliente, setIdCliente] = useState('');
   const [tipoVenta, setTipoVenta] = useState('MENOR');
@@ -186,7 +211,12 @@ export default function NuevaVenta() {
       ]);
       setTurnoActivo(turnoRes.data);
       setClientes(cliRes.data.filter(c => c.activo === 1));
-      setProductosStock(posRes.data.map(p => ({
+      const mapaLotes = new Map();
+      (posRes.data.lotes_con_codigo || []).forEach((l) => {
+        mapaLotes.set(l.codigo_barras, l);
+      });
+      setLotesPorCodigo(mapaLotes);
+      setProductosStock((posRes.data.productos || []).map(p => ({
         ...p,
         precio_menor: parseFloat(p.precio_menor) || 0,
         precio_mayor: parseFloat(p.precio_mayor) || 0,
@@ -248,13 +278,19 @@ export default function NuevaVenta() {
     return combos.filter(c => c.nombre.toLowerCase().includes(b));
   }, [busqueda, combos, soloPromociones]);
 
-  const agregarAlCarrito = (prod) => {
-    const index = carrito.findIndex(item => item.id_producto === prod.id_producto);
+  // loteForzado (opcional): {id_lote, numero_lote, stock_unidades} cuando el producto
+  // se agregó escaneando la etiqueta de un lote específico, no el código genérico.
+  const agregarAlCarrito = (prod, loteForzado = null) => {
+    const idLoteForzado = loteForzado?.id_lote ?? null;
+    const index = carrito.findIndex(
+      item => item.id_producto === prod.id_producto && (item.id_lote_forzado ?? null) === idLoteForzado
+    );
     const precioBase = tipoVenta === 'MAYOR' ? prod.precio_mayor : prod.precio_menor;
+    const stockMaximo = loteForzado ? loteForzado.stock_unidades : prod.stock_unidades_total;
     if (index >= 0) {
       const nuevoCar = [...carrito];
-      if (nuevoCar[index].cantidad + 1 > prod.stock_unidades_total) {
-        mostrarToast('error', 'No hay suficiente stock disponible');
+      if (nuevoCar[index].cantidad + 1 > stockMaximo) {
+        mostrarToast('error', loteForzado ? 'El lote escaneado no tiene más stock' : 'No hay suficiente stock disponible');
         return;
       }
       nuevoCar[index].cantidad += 1;
@@ -269,8 +305,10 @@ export default function NuevaVenta() {
         precio_unitario: precioBase || 0,
         precio_base_unidad: precioBase || 0,
         unidades_por_caja: prod.unidades_por_caja,
-        stock_maximo: prod.stock_unidades_total,
+        stock_maximo: stockMaximo,
         subtotal: precioBase || 0,
+        id_lote_forzado: idLoteForzado,
+        lote_numero: loteForzado?.numero_lote ?? null,
       }]);
     }
   };
@@ -286,7 +324,7 @@ export default function NuevaVenta() {
       return {
         id_producto: p.id_producto,
         id_combo: combo.id_combo,
-        nombre: `${p.producto_nombre}  🎁 ${combo.nombre}`,
+        nombre: `${p.producto_nombre} ${combo.nombre}`,
         tipo_cantidad: 'UNIDAD',
         cantidad: p.cantidad,
         precio_unitario: Math.round((precioAsignado / p.cantidad) * 100) / 100,
@@ -420,7 +458,7 @@ export default function NuevaVenta() {
         setCarrito((prev) => [...prev, {
           id_producto: r.id_producto,
           id_recompensa: r.id_recompensa,
-          nombre: `🎁 ${prod?.nombre || r.producto_nombre} (recompensa)`,
+          nombre: `${prod?.nombre || r.producto_nombre} (recompensa)`,
           tipo_cantidad: 'UNIDAD',
           cantidad: 1,
           precio_unitario: 0,
@@ -434,7 +472,7 @@ export default function NuevaVenta() {
           const nuevosItems = combo.productos.map((p) => ({
             id_producto: p.id_producto,
             id_recompensa: r.id_recompensa,
-            nombre: `🎁 ${p.producto_nombre} (recompensa: ${combo.nombre})`,
+            nombre: `${p.producto_nombre} (recompensa: ${combo.nombre})`,
             tipo_cantidad: 'UNIDAD',
             cantidad: p.cantidad,
             precio_unitario: 0,
@@ -497,11 +535,27 @@ export default function NuevaVenta() {
   };
 
   // Busca un producto por código de barras exacto y lo agrega al carrito.
-  // Devuelve true si encontró coincidencia. Compartida por el lector físico
-  // (Enter en el buscador) y el escáner por cámara.
+  // Primero intenta como código de LOTE (fija ese lote exacto, sin FIFO);
+  // si no, cae al código genérico del producto (comportamiento de siempre).
+  // Devuelve true si agregó, 'SIN_STOCK' si el lote escaneado ya no tiene
+  // existencias (no se sustituye por otro en silencio), o false si no hay coincidencia.
+  // Compartida por el lector físico (Enter en el buscador) y el escáner por cámara.
   const buscarYAgregarPorCodigo = (codigo) => {
     const texto = codigo.trim().toLowerCase();
     if (!texto) return false;
+
+    const loteInfo = lotesPorCodigo.get(texto);
+    if (loteInfo) {
+      const prod = productosStock.find(p => p.id_producto === loteInfo.id_producto);
+      if (!prod) return false;
+      if (loteInfo.stock_unidades <= 0) {
+        mostrarToast('error', `El lote ${loteInfo.numero_lote || loteInfo.id_lote} ya no tiene stock`);
+        return 'SIN_STOCK';
+      }
+      agregarAlCarrito(prod, loteInfo);
+      return true;
+    }
+
     const porCodigo = productosStock.find(
       p => p.codigo_barras && p.codigo_barras.toLowerCase() === texto
     );
@@ -515,9 +569,11 @@ export default function NuevaVenta() {
   // Un código detectado por la cámara: si hay coincidencia, agrega y cierra
   // el modal; si no, avisa y deja la cámara abierta para reintentar.
   const handleCodigoEscaneado = (codigo) => {
-    if (buscarYAgregarPorCodigo(codigo)) {
+    const resultado = buscarYAgregarPorCodigo(codigo);
+    if (resultado === 'SIN_STOCK') {
+      // El toast de error ya se mostró dentro de buscarYAgregarPorCodigo.
+    } else if (resultado) {
       mostrarToast('ok', `Producto agregado (código ${codigo})`);
-      setMostrarEscaner(false);
     } else {
       mostrarToast('error', `Sin coincidencia para el código ${codigo}`);
     }
@@ -600,6 +656,7 @@ export default function NuevaVenta() {
           id_producto: c.id_producto,
           id_combo: c.id_combo || null,
           id_recompensa: c.id_recompensa || null,
+          id_lote_forzado: c.id_lote_forzado || null,
           tipo_cantidad: c.tipo_cantidad,
           cantidad: parseFloat(c.cantidad),
           precio_unitario: parseFloat(c.precio_unitario),
@@ -684,7 +741,6 @@ export default function NuevaVenta() {
   if (!turnoActivo) return (
     <div className="min-h-screen flex items-center justify-center bg-zinc-100 dark:bg-zinc-950 p-4">
       <div className="max-w-sm w-full bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm p-6 text-center">
-        <p className="text-4xl mb-3">🔒</p>
         <h2 className="font-bold text-zinc-900 dark:text-white mb-1">Caja cerrada</h2>
         <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-5">
           No hay un turno de caja abierto en esta sucursal. Abre un turno antes de vender.
@@ -708,7 +764,7 @@ export default function NuevaVenta() {
   );
 
   return (
-    <div className="h-screen bg-zinc-100 dark:bg-zinc-950 flex flex-col md:flex-row overflow-hidden">
+    <div className="h-full bg-zinc-100 dark:bg-zinc-950 flex flex-col md:flex-row overflow-hidden">
       <Toast toast={toast} />
 
       {mostrarEscaner && (
@@ -728,7 +784,7 @@ export default function NuevaVenta() {
               : 'border-transparent text-zinc-400'
           }`}
         >
-          📦 Catálogo
+          Catálogo
         </button>
         <button
           onClick={() => setVistaMovil('carrito')}
@@ -738,7 +794,7 @@ export default function NuevaVenta() {
               : 'border-transparent text-zinc-400'
           }`}
         >
-          🧾 Carrito
+          Carrito
           {carrito.length > 0 && (
             <span className="min-w-[1.25rem] h-5 px-1 rounded-full bg-emerald-500 text-white text-xs flex items-center justify-center">
               {carrito.length}
@@ -748,7 +804,7 @@ export default function NuevaVenta() {
       </div>
 
       {/* Panel Izquierdo: Catálogo */}
-      <div className={`${vistaMovil === 'catalogo' ? 'flex' : 'hidden'} md:flex w-full flex-col flex-1 min-w-0 min-h-0 md:h-screen border-r border-zinc-200 dark:border-zinc-800`}>
+      <div className={`${vistaMovil === 'catalogo' ? 'flex' : 'hidden'} md:flex w-full flex-col flex-1 min-w-0 min-h-0 md:h-full border-r border-zinc-200 dark:border-zinc-800`}>
         <div className="p-4 bg-white dark:bg-zinc-900 shadow-sm z-10 flex gap-4 items-center shrink-0">
           <button onClick={() => navigate('/ventas')} className="p-2 text-zinc-500 hover:text-zinc-800 bg-zinc-100 dark:bg-zinc-800 rounded-lg">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -792,7 +848,7 @@ export default function NuevaVenta() {
                     : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700'
                 }`}
               >
-                🔥 Promociones
+                Promociones
               </button>
             )}
             {marcas.length > 0 && (
@@ -852,7 +908,7 @@ export default function NuevaVenta() {
                     </div>
                   )}
                   <span className="absolute top-1.5 left-1.5 text-[9px] font-bold text-white bg-blue-600 px-1.5 py-0.5 rounded-full">
-                    🎁 Combo
+                    Combo
                   </span>
                 </div>
                 <div className="p-3 flex flex-col flex-1">
@@ -934,7 +990,7 @@ export default function NuevaVenta() {
       </div>
 
       {/* Panel Derecho: Carrito y Cobro */}
-      <div className={`${vistaMovil === 'carrito' ? 'flex' : 'hidden'} md:flex w-full md:w-[360px] lg:w-[380px] shrink-0 bg-white dark:bg-zinc-900 flex-col min-h-0 md:h-screen shadow-2xl z-20`}>
+      <div className={`${vistaMovil === 'carrito' ? 'flex' : 'hidden'} md:flex w-full md:w-[360px] lg:w-[380px] shrink-0 bg-white dark:bg-zinc-900 flex-col min-h-0 md:h-full shadow-2xl z-20`}>
 
         {/* Cabecera */}
         <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 shrink-0 space-y-3">
@@ -965,7 +1021,7 @@ export default function NuevaVenta() {
                 <>
                   <input
                     type="text"
-                    placeholder="Cliente Casual — buscar por CI o nombre"
+                    placeholder="Buscar cliente..."
                     value={busquedaCliente}
                     onChange={(e) => { setBusquedaCliente(e.target.value); setMostrarBusquedaCliente(true); }}
                     onFocus={() => setMostrarBusquedaCliente(true)}
@@ -1003,6 +1059,18 @@ export default function NuevaVenta() {
                 </>
               )}
             </div>
+            {!clienteSeleccionado && (
+              <button
+                type="button"
+                onClick={abrirFormNuevoCliente}
+                title="Registrar cliente nuevo"
+                className="shrink-0 px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-zinc-500 hover:text-emerald-600 hover:border-emerald-400 dark:hover:text-emerald-400 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M18 7.5v6m3-3h-6M6 21v-2a4 4 0 014-4h1m-1-4a4 4 0 100-8 4 4 0 000 8z" />
+                </svg>
+              </button>
+            )}
             <select
               value={tipoVenta}
               onChange={(e) => setTipoVenta(e.target.value)}
@@ -1023,7 +1091,7 @@ export default function NuevaVenta() {
           {idCliente && clientePuntos != null && (
             <div className="relative">
               <div className="flex items-center justify-between p-2.5 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-                <span className="text-xs font-semibold text-amber-700 dark:text-amber-400">⭐ {clientePuntos} puntos</span>
+                <span className="text-xs font-semibold text-amber-700 dark:text-amber-400">{clientePuntos} puntos</span>
                 {recompensaAplicada ? (
                   <button onClick={quitarRecompensa} className="text-xs font-bold text-red-600 dark:text-red-400 hover:underline">
                     Quitar "{recompensaAplicada.nombre}"
@@ -1047,9 +1115,9 @@ export default function NuevaVenta() {
                       className="w-full text-left px-3 py-2 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-900 dark:text-white flex items-center justify-between gap-2"
                     >
                       <span className="truncate">
-                        {r.tipo === 'PRODUCTO' ? '🎁' : '💸'} {r.nombre}
+                        {r.nombre}
                       </span>
-                      <span className="text-xs text-amber-600 dark:text-amber-400 shrink-0">⭐{r.costo_puntos}</span>
+                      <span className="text-xs text-amber-600 dark:text-amber-400 shrink-0">{r.costo_puntos}</span>
                     </button>
                   ))}
                 </div>
@@ -1059,7 +1127,7 @@ export default function NuevaVenta() {
         </div>
 
         {/* Items */}
-        <div className="flex-1 overflow-y-auto sin-scrollbar p-4 space-y-3 bg-zinc-50/50 dark:bg-zinc-900">
+        <div className="flex-1 min-h-0 overflow-y-auto sin-scrollbar p-4 space-y-3 bg-zinc-50/50 dark:bg-zinc-900">
           {carrito.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-zinc-400 space-y-4">
               <svg className="w-16 h-16 opacity-20" fill="none" stroke="currentColor" strokeWidth={1} viewBox="0 0 24 24">
@@ -1071,7 +1139,14 @@ export default function NuevaVenta() {
             carrito.map((item, idx) => (
               <div key={idx} className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 shadow-sm px-3 py-2.5">
                 <div className="flex items-start justify-between gap-2">
-                  <h4 className="font-semibold text-sm text-zinc-900 dark:text-white leading-tight line-clamp-2">{item.nombre}</h4>
+                  <div className="min-w-0">
+                    <h4 className="font-semibold text-sm text-zinc-900 dark:text-white leading-tight line-clamp-2">{item.nombre}</h4>
+                    {item.id_lote_forzado && (
+                      <span className="inline-block mt-0.5 px-1.5 py-0.5 bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 text-[10px] rounded font-bold">
+                        Lote: {item.lote_numero || item.id_lote_forzado}
+                      </span>
+                    )}
+                  </div>
                   <button onClick={() => eliminarDelCarrito(idx)} className="shrink-0 text-zinc-300 hover:text-red-500 dark:text-zinc-600 dark:hover:text-red-400">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
                   </button>
@@ -1179,7 +1254,7 @@ export default function NuevaVenta() {
 
           {recompensaAplicada?.tipo === 'DESCUENTO' && totales.descuento_recompensa > 0 && (
             <div className="flex justify-between text-sm text-amber-600 dark:text-amber-400">
-              <span>🎁 Recompensa "{recompensaAplicada.nombre}"</span>
+              <span>Recompensa "{recompensaAplicada.nombre}"</span>
               <span>-Bs {totales.descuento_recompensa.toFixed(2)}</span>
             </div>
           )}
@@ -1208,9 +1283,6 @@ export default function NuevaVenta() {
                 </button>
               ))}
             </div>
-            {!idCliente && (
-              <p className="text-[10px] text-zinc-400 mt-1">Un cliente casual no puede comprar a crédito.</p>
-            )}
           </div>
 
           <div>
@@ -1276,7 +1348,7 @@ export default function NuevaVenta() {
       {/* Modal: registrar cliente nuevo sin salir del POS */}
       {mostrarFormCliente && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-sm bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-xl p-5">
+          <div className="w-full max-w-sm max-h-[90vh] overflow-y-auto bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-xl p-5">
             <h3 className="font-bold text-zinc-900 dark:text-white mb-1">Nuevo cliente</h3>
             <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-4">
               No encontramos a "{busquedaCliente}". Regístralo rápido y se selecciona para esta venta.
@@ -1379,7 +1451,7 @@ export default function NuevaVenta() {
       {/* Modal: cobro con QR Banco (generación + verificación automática) */}
       {modalQrBanco && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-sm bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-xl p-5 text-center">
+          <div className="w-full max-w-sm max-h-[90vh] overflow-y-auto bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-xl p-5 text-center">
             <h3 className="font-bold text-zinc-900 dark:text-white mb-1">Cobro con QR Banco</h3>
             <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-4">
               Bs {totales.total.toFixed(2)} — pide al cliente que escanee este código con su banca móvil.
@@ -1407,7 +1479,6 @@ export default function NuevaVenta() {
       {errorQrBanco && !modalQrBanco && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-sm bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-xl p-5 text-center">
-            <p className="text-4xl mb-3">⚠️</p>
             <p className="text-sm text-zinc-700 dark:text-zinc-300 mb-4">{errorQrBanco}</p>
             <button
               onClick={() => setErrorQrBanco('')}

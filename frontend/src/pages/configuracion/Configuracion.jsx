@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import PageWrapper from '../../components/PageWrapper';
 import configuracionService from '../../services/configuracion.service';
 import { useConfiguracion } from '../../contexts/ConfiguracionContext';
+import { usePermission } from '../../hooks/usePermission';
 
 function Toast({ toast }) {
   if (!toast) return null;
@@ -11,7 +12,6 @@ function Toast({ toast }) {
         ? 'bg-green-50 dark:bg-green-900/40 border-green-200 dark:border-green-700 text-green-800 dark:text-green-300'
         : 'bg-red-50 dark:bg-red-900/40 border-red-200 dark:border-red-700 text-red-800 dark:text-red-300'
     }`}>
-      <span className="shrink-0">{toast.tipo === 'ok' ? '✅' : '⚠️'}</span>
       <span className="break-words">{toast.msg}</span>
     </div>
   );
@@ -19,6 +19,8 @@ function Toast({ toast }) {
 
 export default function Configuracion() {
   const { logoUrl, nombreEmpresa, recargar } = useConfiguracion();
+  const { puede } = usePermission();
+  const puedeEditar = puede('editar', 'configuracion');
 
   const [nombre, setNombre] = useState('');
   const [nit, setNit] = useState('');
@@ -159,11 +161,12 @@ export default function Configuracion() {
           <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm p-5 lg:sticky lg:top-4">
             <h3 className="font-bold text-zinc-900 dark:text-white mb-3">Logo de la empresa</h3>
             <div
-              onClick={() => !guardandoLogo && inputRef.current?.click()}
-              onDragOver={(e) => { e.preventDefault(); setArrastrandoSobre(true); }}
+              onClick={() => puedeEditar && !guardandoLogo && inputRef.current?.click()}
+              onDragOver={(e) => { if (puedeEditar) { e.preventDefault(); setArrastrandoSobre(true); } }}
               onDragLeave={() => setArrastrandoSobre(false)}
-              onDrop={handleDrop}
-              className={`relative w-full aspect-square rounded-xl overflow-hidden flex flex-col items-center justify-center border-2 cursor-pointer transition-all
+              onDrop={(e) => { if (puedeEditar) handleDrop(e); }}
+              className={`relative w-full aspect-square rounded-xl overflow-hidden flex flex-col items-center justify-center border-2 transition-all
+                ${puedeEditar ? 'cursor-pointer' : 'cursor-default'}
                 ${arrastrandoSobre
                   ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20'
                   : imagenMostrada
@@ -194,29 +197,31 @@ export default function Configuracion() {
               )}
             </div>
 
-            <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleFileChange} />
+            <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleFileChange} disabled={!puedeEditar} />
 
-            <div className="flex gap-2 mt-4">
-              <button
-                onClick={() => inputRef.current?.click()}
-                disabled={guardandoLogo}
-                className="flex-1 px-3 py-2 text-sm font-medium bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-xl transition-colors disabled:opacity-50"
-              >
-                Seleccionar
-              </button>
-              {tieneLogo && !preview && (
+            {puedeEditar && (
+              <div className="flex gap-2 mt-4">
                 <button
-                  onClick={eliminarLogo}
+                  onClick={() => inputRef.current?.click()}
                   disabled={guardandoLogo}
-                  className="px-3 py-2 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors disabled:opacity-50"
-                  title="Eliminar logo actual"
+                  className="flex-1 px-3 py-2 text-sm font-medium bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-xl transition-colors disabled:opacity-50"
                 >
-                  Eliminar
+                  Seleccionar
                 </button>
-              )}
-            </div>
+                {tieneLogo && !preview && (
+                  <button
+                    onClick={eliminarLogo}
+                    disabled={guardandoLogo}
+                    className="px-3 py-2 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors disabled:opacity-50"
+                    title="Eliminar logo actual"
+                  >
+                    Eliminar
+                  </button>
+                )}
+              </div>
+            )}
 
-            {archivo && (
+            {puedeEditar && archivo && (
               <button
                 onClick={guardarLogo}
                 disabled={guardandoLogo}
@@ -240,7 +245,8 @@ export default function Configuracion() {
                   type="text"
                   value={nombre}
                   onChange={(e) => setNombre(e.target.value)}
-                  className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
+                  disabled={!puedeEditar}
+                  className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed"
                 />
               </div>
               <div>
@@ -249,7 +255,8 @@ export default function Configuracion() {
                   type="text"
                   value={nit}
                   onChange={(e) => setNit(e.target.value)}
-                  className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
+                  disabled={!puedeEditar}
+                  className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed"
                 />
               </div>
               <div>
@@ -258,7 +265,8 @@ export default function Configuracion() {
                   type="text"
                   value={telefono}
                   onChange={(e) => setTelefono(e.target.value)}
-                  className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
+                  disabled={!puedeEditar}
+                  className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed"
                 />
               </div>
               <div className="sm:col-span-2">
@@ -267,7 +275,8 @@ export default function Configuracion() {
                   type="text"
                   value={direccion}
                   onChange={(e) => setDireccion(e.target.value)}
-                  className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
+                  disabled={!puedeEditar}
+                  className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed"
                 />
               </div>
               <div>
@@ -276,7 +285,8 @@ export default function Configuracion() {
                   type="text"
                   value={ciudad}
                   onChange={(e) => setCiudad(e.target.value)}
-                  className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
+                  disabled={!puedeEditar}
+                  className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed"
                 />
               </div>
               <div>
@@ -285,20 +295,23 @@ export default function Configuracion() {
                   type="email"
                   value={correo}
                   onChange={(e) => setCorreo(e.target.value)}
-                  className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
+                  disabled={!puedeEditar}
+                  className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed"
                 />
               </div>
             </div>
 
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-5 pt-4 border-t border-zinc-100 dark:border-zinc-800">
               <p className="text-xs text-zinc-400">Nombre en uso actualmente: <span className="font-medium text-zinc-600 dark:text-zinc-300">{nombreEmpresa}</span></p>
-              <button
-                onClick={guardarDatosEmpresa}
-                disabled={guardandoNombre}
-                className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold disabled:opacity-50 shrink-0"
-              >
-                {guardandoNombre ? 'Guardando...' : 'Guardar datos'}
-              </button>
+              {puedeEditar && (
+                <button
+                  onClick={guardarDatosEmpresa}
+                  disabled={guardandoNombre}
+                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold disabled:opacity-50 shrink-0"
+                >
+                  {guardandoNombre ? 'Guardando...' : 'Guardar datos'}
+                </button>
+              )}
             </div>
           </div>
         </div>

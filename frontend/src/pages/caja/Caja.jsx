@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import PageWrapper from '../../components/PageWrapper';
 import cajaService from '../../services/caja.service';
 import { usePermission } from '../../hooks/usePermission';
+import { useAuth } from '../../contexts/AuthContext';
 import { ModalCaja, ModalAbrirTurno, ModalCerrarTurno, ModalGasto } from './components/CajaModals';
 
 function Toast({ toast }) {
@@ -13,7 +14,6 @@ function Toast({ toast }) {
         ? 'bg-green-50 dark:bg-green-900/40 border-green-200 dark:border-green-700 text-green-800 dark:text-green-300'
         : 'bg-red-50 dark:bg-red-900/40 border-red-200 dark:border-red-700 text-red-800 dark:text-red-300'
     }`}>
-      <span className="shrink-0">{toast.tipo === 'ok' ? '✅' : '⚠️'}</span>
       <span className="break-words">{toast.msg}</span>
     </div>
   );
@@ -39,6 +39,7 @@ function fmtFecha(d) { return d ? new Date(d).toLocaleString('es-BO') : '—'; }
 
 export default function Caja() {
   const { puede } = usePermission();
+  const { usuario } = useAuth();
   const navigate = useNavigate();
 
   const [tab, setTab] = useState('cajas');
@@ -206,7 +207,7 @@ export default function Caja() {
       <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-zinc-900 dark:text-white flex items-center gap-2">
-            🏧 Módulo de Caja
+            Módulo de Caja
           </h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
             Gestión de cajas físicas, apertura y cierre de turnos.
@@ -237,7 +238,7 @@ export default function Caja() {
                 Registrar gasto
               </button>
             )}
-            {puede('cerrar', 'caja') && (
+            {puede('cerrar', 'caja') && (turnoActivo.id_usuario === usuario?.id_usuario || puede('cerrar_todas', 'caja')) && (
               <button
                 onClick={() => setModal('cerrarTurno')}
                 className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-xl text-sm font-medium"
@@ -253,7 +254,7 @@ export default function Caja() {
             <p className="font-medium text-zinc-700 dark:text-zinc-300">Sin turno activo</p>
             {cajas.some(c => c.activo == true || c.activo === 1)
               ? <p className="text-sm text-zinc-500">Abra un turno de caja para registrar ventas en esta sucursal.</p>
-              : <p className="text-sm text-amber-600 dark:text-amber-400">⚠️ Primero cree una caja desde la pestaña <strong>Cajas</strong>.</p>
+              : <p className="text-sm text-amber-600 dark:text-amber-400">Primero cree una caja desde la pestaña <strong>Cajas</strong>.</p>
             }
           </div>
           {puede('abrir', 'caja') && (
@@ -447,7 +448,7 @@ export default function Caja() {
                       onClick={() => navigate(`/caja/turnos/${t.id_apertura}/resumen`)}
                       className="w-full mt-3 py-2 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg text-sm font-bold flex items-center justify-center gap-2"
                     >
-                      🖨️ Ver / imprimir resumen
+                      Ver / imprimir resumen
                     </button>
                   </div>
                 ))}

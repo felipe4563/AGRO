@@ -1,15 +1,3 @@
-const ICONOS = {
-  dashboard:      '📊',
-  encomiendas:    '📦',
-  manifiestos:    '📋',
-  ordenes_salida: '🚗',
-  reportes:       '📈',
-  roles:          '🔐',
-  sectores:       '🗺',
-  sucursales:     '🏪',
-  usuarios:       '👥',
-};
-
 export default function ModuloSeccion({
   modulo, permisos, seleccionados, onChange, readonly = false
 }) {
@@ -34,11 +22,10 @@ export default function ModuloSeccion({
                     overflow-hidden bg-white dark:bg-zinc-800/50">
 
       {/* Header del módulo */}
-      <div className="flex items-center justify-between px-4 py-3
+      <div className="flex items-center justify-between flex-wrap gap-2 px-4 py-3
                       bg-zinc-50 dark:bg-zinc-800
                       border-b border-zinc-200 dark:border-zinc-700">
-        <div className="flex items-center gap-2">
-          <span>{ICONOS[modulo] ?? '📁'}</span>
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm font-bold capitalize
                            text-zinc-800 dark:text-white">
             {modulo.replace(/_/g, ' ')}

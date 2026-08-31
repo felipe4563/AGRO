@@ -1,41 +1,47 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import PageWrapper from '../../components/PageWrapper';
 import reporteService from '../../services/reporte.service';
+import FiltrosAvanzados from './components/FiltrosAvanzados';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
 } from 'recharts';
-import * as htmlToImage from 'html-to-image';
 import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { useConfiguracion } from '../../contexts/ConfiguracionContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { dibujarEncabezadoEmpresa } from '../../utils/pdfEmpresa';
 
 export default function DashboardReportes() {
   const configuracion = useConfiguracion();
+  const { usuario } = useAuth();
   const [financiero, setFinanciero] = useState(null);
   const [topProductos, setTopProductos] = useState([]);
   const [vencimientos, setVencimientos] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [exportando, setExportando] = useState(false);
+  const [filtros, setFiltros] = useState({});
   // Recharts mide el contenedor del gráfico en el mismo tick del montaje,
   // antes de que el navegador termine de calcular su tamaño real (por eso
   // el warning "width(-1) height(-1)" en consola). Esperar un frame antes
   // de montar el <ResponsiveContainer> evita esa medición prematura.
   const [listoParaGrafico, setListoParaGrafico] = useState(false);
 
-  const dashboardRef = useRef(null);
-
   useEffect(() => {
     cargarReportes();
     const frame = requestAnimationFrame(() => setListoParaGrafico(true));
     return () => cancelAnimationFrame(frame);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const cargarReportes = async () => {
     setCargando(true);
     try {
+      const params = filtros.fechaInicio && filtros.fechaFin
+        ? { fechaInicio: filtros.fechaInicio, fechaFin: filtros.fechaFin }
+        : undefined;
       const [finRes, topRes, venRes] = await Promise.all([
-        reporteService.financiero(),
-        reporteService.topProductos(),
+        reporteService.financiero(params),
+        reporteService.topProductos(params),
         reporteService.vencimientos()
       ]);
       setFinanciero(finRes.data);
@@ -49,45 +55,108 @@ export default function DashboardReportes() {
     }
   };
 
+  const rangoTexto = filtros.fechaInicio && filtros.fechaFin
+    ? `Del ${filtros.fechaInicio} al ${filtros.fechaFin}`
+    : 'Mes actual';
+
   const exportarPDF = async () => {
-    if (!dashboardRef.current) return;
     setExportando(true);
-
     try {
-      // html-to-image usa el motor nativo del navegador, por lo que soporta OKLCH y CSS moderno
-      const imgData = await htmlToImage.toJpeg(dashboardRef.current, { 
-        quality: 0.98,
-        backgroundColor: '#ffffff',
-        pixelRatio: 2
-      });
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4'
-      });
-
-      // Portada con los datos de la empresa, y el dashboard en una página aparte
-      // a ancho completo (mantiene la escala/nitidez de la captura original).
-      const encabezadoY = await dibujarEncabezadoEmpresa(pdf, configuracion, { startY: 18 });
+      let y = await dibujarEncabezadoEmpresa(pdf, configuracion, { startY: 18 });
       pdf.setFontSize(16);
       pdf.setFont(undefined, 'bold');
-      pdf.text('Reporte Gerencial', 14, encabezadoY + 4);
+      pdf.text('Reporte Gerencial', 14, y + 4);
       pdf.setFont(undefined, 'normal');
       pdf.setFontSize(10);
       pdf.setTextColor(120);
-      pdf.text(`Generado el: ${new Date().toLocaleString()}`, 14, encabezadoY + 11);
+      pdf.text(`Período: ${rangoTexto}`, 14, y + 11);
+      pdf.text(`Generado el: ${new Date().toLocaleString()}`, 14, y + 16);
+      if (usuario) {
+        pdf.text(`Generado por: ${usuario.nombre} ${usuario.apellido || ''} ${usuario.sucursal_nombre ? `(${usuario.sucursal_nombre})` : ''}`, 14, y + 21);
+        y += 29;
+      } else {
+        y += 24;
+      }
       pdf.setTextColor(0);
 
-      pdf.addPage();
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      // Calcular el alto de la imagen en el PDF manteniendo la proporción
-      const imgProps = pdf.getImageProperties(imgData);
-      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      if (financiero) {
+        autoTable(pdf, {
+          startY: y,
+          head: [['Indicador', 'Valor']],
+          body: [
+            ['Ventas del período', `Bs ${parseFloat(financiero.ingresos_mes).toLocaleString()}`],
+            ['Compras del período', `Bs ${parseFloat(financiero.egresos_mes).toLocaleString()}`],
+            ['Flujo bruto (Ventas - Compras)', `Bs ${parseFloat(financiero.utilidad_bruta_mes).toLocaleString()}`],
+            ['Ventas de hoy', `${financiero.ventas_hoy_cantidad} (Bs ${parseFloat(financiero.ingresos_hoy).toLocaleString()})`],
+          ],
+          styles: { fontSize: 9 },
+          headStyles: { fillColor: [16, 185, 129] },
+          margin: { left: 14, right: 14 },
+        });
+        y = pdf.lastAutoTable.finalY + 10;
+      }
 
-      pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+      pdf.setFontSize(12);
+      pdf.setFont(undefined, 'bold');
+      pdf.text('Productos Más Vendidos', 14, y);
+      y += 4;
+
+      if (topProductos.length > 0) {
+        autoTable(pdf, {
+          startY: y,
+          head: [['Producto', 'Código', 'Unidades Vendidas', 'Ingresos Generados']],
+          body: topProductos.map((p) => [
+            p.nombre,
+            p.codigo_barras || '-',
+            p.unidades_vendidas,
+            `Bs ${parseFloat(p.ingresos_generados).toLocaleString()}`,
+          ]),
+          styles: { fontSize: 8 },
+          headStyles: { fillColor: [16, 185, 129] },
+          margin: { left: 14, right: 14 },
+        });
+        y = pdf.lastAutoTable.finalY + 10;
+      } else {
+        pdf.setFont(undefined, 'normal');
+        pdf.setFontSize(9);
+        pdf.text('No hay datos de ventas suficientes.', 14, y + 5);
+        y += 12;
+      }
+
+      if (y > pdf.internal.pageSize.getHeight() - 40) {
+        pdf.addPage();
+        y = 18;
+      }
+
+      pdf.setFontSize(12);
+      pdf.setFont(undefined, 'bold');
+      pdf.text('Alertas de Vencimiento (Próximos 30 días)', 14, y);
+      y += 4;
+
+      if (vencimientos.length > 0) {
+        autoTable(pdf, {
+          startY: y,
+          head: [['Producto', 'Lote', 'Stock', 'Vencimiento', 'Estado']],
+          body: vencimientos.map((v) => [
+            v.producto_nombre,
+            v.numero_lote || v.id_lote,
+            `${v.stock_unidades} u`,
+            new Date(v.fecha_vencimiento).toLocaleDateString(),
+            v.dias_restantes < 0 ? `Vencido hace ${Math.abs(v.dias_restantes)}d` : `En ${v.dias_restantes} días`,
+          ]),
+          styles: { fontSize: 8 },
+          headStyles: { fillColor: [239, 68, 68] },
+          margin: { left: 14, right: 14 },
+        });
+      } else {
+        pdf.setFont(undefined, 'normal');
+        pdf.setFontSize(9);
+        pdf.text('Todo el inventario está vigente.', 14, y + 5);
+      }
+
       pdf.save(`Reporte_Gerencial_${new Date().toLocaleDateString().replace(/\//g, '-')}.pdf`);
-
     } catch (error) {
       console.error('Error al exportar PDF:', error);
       alert('Hubo un error al generar el PDF: ' + error.message);
@@ -95,20 +164,6 @@ export default function DashboardReportes() {
       setExportando(false);
     }
   };
-
-  if (cargando) {
-    return (
-      <PageWrapper>
-        <div className="flex flex-col items-center justify-center h-64 text-zinc-500">
-          <svg className="animate-spin h-8 w-8 mb-4 text-emerald-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-          </svg>
-          Cargando métricas...
-        </div>
-      </PageWrapper>
-    );
-  }
 
   const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6'];
 
@@ -128,7 +183,7 @@ export default function DashboardReportes() {
         </div>
         <button
           onClick={exportarPDF}
-          disabled={exportando}
+          disabled={exportando || cargando}
           className="bg-zinc-800 hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white text-white px-4 py-2 rounded-xl text-sm font-medium shadow-sm transition-colors flex items-center gap-2 disabled:opacity-50"
         >
           {exportando ? (
@@ -140,8 +195,24 @@ export default function DashboardReportes() {
         </button>
       </div>
 
-      {/* Contenedor Ref para PDF */}
-      <div ref={dashboardRef} className="space-y-6 bg-zinc-50 dark:bg-zinc-950 p-4 rounded-3xl -mx-4 sm:mx-0">
+      <FiltrosAvanzados
+        filtros={filtros}
+        setFiltros={setFiltros}
+        onBuscar={cargarReportes}
+        cargando={cargando}
+        opciones={{ fechas: true }}
+      />
+
+      {cargando ? (
+        <div className="flex flex-col items-center justify-center h-64 text-zinc-500">
+          <svg className="animate-spin h-8 w-8 mb-4 text-emerald-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          Cargando métricas...
+        </div>
+      ) : (
+      <div className="space-y-6">
 
         {/* Tarjetas KPI (Financiero) */}
         {financiero && (
@@ -150,16 +221,16 @@ export default function DashboardReportes() {
               <div className="absolute top-0 right-0 p-4 opacity-10">
                 <svg className="w-16 h-16 text-emerald-500" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
               </div>
-              <p className="text-sm font-semibold text-zinc-500 uppercase tracking-wider mb-2">Ventas del Mes</p>
+              <p className="text-sm font-semibold text-zinc-500 uppercase tracking-wider mb-2">Ventas del Período</p>
               <h3 className="text-3xl font-black text-emerald-600 dark:text-emerald-400">Bs {parseFloat(financiero.ingresos_mes).toLocaleString()}</h3>
               <p className="text-xs text-zinc-400 mt-2">Ingresos hoy: Bs {parseFloat(financiero.ingresos_hoy).toLocaleString()}</p>
             </div>
-            
+
             <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 border border-zinc-200 dark:border-zinc-800 shadow-sm relative overflow-hidden">
                <div className="absolute top-0 right-0 p-4 opacity-10">
                 <svg className="w-16 h-16 text-red-500" fill="currentColor" viewBox="0 0 24 24"><path d="M19 13H5v-2h14v2z"/></svg>
               </div>
-              <p className="text-sm font-semibold text-zinc-500 uppercase tracking-wider mb-2">Compras del Mes</p>
+              <p className="text-sm font-semibold text-zinc-500 uppercase tracking-wider mb-2">Compras del Período</p>
               <h3 className="text-3xl font-black text-red-600 dark:text-red-400">Bs {parseFloat(financiero.egresos_mes).toLocaleString()}</h3>
               <p className="text-xs text-zinc-400 mt-2">Gastos en inventario</p>
             </div>
@@ -168,7 +239,7 @@ export default function DashboardReportes() {
                <div className="absolute top-0 right-0 p-4 opacity-10">
                 <svg className="w-16 h-16 text-blue-500" fill="currentColor" viewBox="0 0 24 24"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg>
               </div>
-              <p className="text-sm font-semibold text-zinc-500 uppercase tracking-wider mb-2">Flujo Bruto (Mes)</p>
+              <p className="text-sm font-semibold text-zinc-500 uppercase tracking-wider mb-2">Flujo Bruto (Período)</p>
               <h3 className={`text-3xl font-black ${financiero.utilidad_bruta_mes >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-orange-600 dark:text-orange-400'}`}>
                 Bs {parseFloat(financiero.utilidad_bruta_mes).toLocaleString()}
               </h3>
@@ -188,25 +259,25 @@ export default function DashboardReportes() {
               </svg>
               Top 5 Productos Más Vendidos
             </h3>
-            
+
             {topProductos.length === 0 ? (
               <div className="h-64 flex items-center justify-center text-zinc-400">No hay datos de ventas suficientes</div>
             ) : !listoParaGrafico ? (
               <div className="h-72" />
             ) : (
               <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={200}>
-                  <BarChart data={topProductos} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                <ResponsiveContainer width="99%" height={280}>
+                  <BarChart data={topProductos.slice(0, 5)} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#3f3f46" opacity={0.2} />
                     <XAxis type="number" tick={{fill: '#71717a', fontSize: 12}} />
                     <YAxis dataKey="nombre" type="category" width={100} tick={{fill: '#71717a', fontSize: 12}} />
-                    <Tooltip 
-                      cursor={{fill: 'rgba(16, 185, 129, 0.1)'}} 
+                    <Tooltip
+                      cursor={{fill: 'rgba(16, 185, 129, 0.1)'}}
                       contentStyle={{backgroundColor: '#18181b', border: 'none', borderRadius: '8px', color: '#fff'}}
                       formatter={(value) => [`${value} unidades`, 'Vendido']}
                     />
                     <Bar dataKey="unidades_vendidas" radius={[0, 4, 4, 0]}>
-                      {topProductos.map((entry, index) => (
+                      {topProductos.slice(0, 5).map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Bar>
@@ -227,7 +298,7 @@ export default function DashboardReportes() {
               </h3>
               <p className="text-xs text-zinc-500 mt-1">Lotes que requieren acción inmediata para evitar mermas.</p>
             </div>
-            
+
             <div className="overflow-y-auto flex-1 max-h-[300px]">
               {vencimientos.length === 0 ? (
                 <div className="h-full flex items-center justify-center gap-2 text-emerald-600 dark:text-emerald-400 font-medium py-8">
@@ -257,8 +328,8 @@ export default function DashboardReportes() {
                         </td>
                         <td className="px-4 py-3 text-right">
                           <span className={`px-2 py-1 rounded text-xs font-bold border ${
-                            v.dias_restantes < 0 
-                              ? 'text-red-700 bg-red-100 border-red-300' 
+                            v.dias_restantes < 0
+                              ? 'text-red-700 bg-red-100 border-red-300'
                               : 'text-amber-700 bg-amber-100 border-amber-300'
                           }`}>
                             {v.dias_restantes < 0 ? `Vencido hace ${Math.abs(v.dias_restantes)}d` : `En ${v.dias_restantes} días`}
@@ -273,6 +344,7 @@ export default function DashboardReportes() {
           </div>
         </div>
       </div>
+      )}
     </PageWrapper>
   );
 }

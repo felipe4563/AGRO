@@ -106,7 +106,7 @@ export default function TablaCompras({
                       </button>
                     )}
 
-                    {c.estado === 'PENDIENTE' && puede('editar', 'compras') && (
+                    {c.estado === 'PENDIENTE' && puede('anular', 'compras') && (
                       <button
                         onClick={() => onAnular(c)}
                         className="p-1.5 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/30 rounded transition-colors"

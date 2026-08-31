@@ -145,14 +145,16 @@ export default function TablaProductos({
             </div>
 
             <div className="flex items-center justify-between mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800">
-              <div className="text-sm">
-                <p className="text-zinc-800 dark:text-zinc-200 font-medium">
-                  Mayor: Bs {p.precio_mayor} <span className="text-xs text-red-500">(-{p.descuento_mayor}%)</span>
-                </p>
-                <p className="text-zinc-600 dark:text-zinc-400">
-                  Menor: Bs {p.precio_menor} <span className="text-xs text-red-500">(-{p.descuento_menor}%)</span>
-                </p>
-              </div>
+              {puede('ver_precios', 'productos') ? (
+                <div className="text-sm">
+                  <p className="text-zinc-800 dark:text-zinc-200 font-medium">
+                    Mayor: Bs {p.precio_mayor} <span className="text-xs text-red-500">(-{p.descuento_mayor}%)</span>
+                  </p>
+                  <p className="text-zinc-600 dark:text-zinc-400">
+                    Menor: Bs {p.precio_menor} <span className="text-xs text-red-500">(-{p.descuento_menor}%)</span>
+                  </p>
+                </div>
+              ) : <div />}
               <AccionesProducto
                 p={p}
                 onEditar={onEditar}
@@ -175,7 +177,7 @@ export default function TablaProductos({
                 <th className="px-4 py-3 font-medium w-12"></th>
                 <th className="px-4 py-3 font-medium">Producto</th>
                 <th className="px-4 py-3 font-medium">Categorización</th>
-                <th className="px-4 py-3 font-medium">Precios</th>
+                {puede('ver_precios', 'productos') && <th className="px-4 py-3 font-medium">Precios</th>}
                 <th className="px-4 py-3 font-medium hidden lg:table-cell">Stock Mín.</th>
                 <th className="px-4 py-3 font-medium text-center">Estado</th>
                 <th className="px-4 py-3 font-medium text-right">Acciones</th>
@@ -208,14 +210,16 @@ export default function TablaProductos({
                     <p><span className="font-medium">Marca:</span> {p.marca_nombre}</p>
                     <p className="hidden lg:block"><span className="font-medium">U.M:</span> {p.unidad_abreviatura}</p>
                   </td>
-                  <td className="px-4 py-3 text-sm">
-                    <p className="text-zinc-800 dark:text-zinc-200 font-medium">
-                      Mayor: Bs {p.precio_mayor} <span className="text-xs text-red-500">(-{p.descuento_mayor}%)</span>
-                    </p>
-                    <p className="text-zinc-600 dark:text-zinc-400">
-                      Menor: Bs {p.precio_menor} <span className="text-xs text-red-500">(-{p.descuento_menor}%)</span>
-                    </p>
-                  </td>
+                  {puede('ver_precios', 'productos') && (
+                    <td className="px-4 py-3 text-sm">
+                      <p className="text-zinc-800 dark:text-zinc-200 font-medium">
+                        Mayor: Bs {p.precio_mayor} <span className="text-xs text-red-500">(-{p.descuento_mayor}%)</span>
+                      </p>
+                      <p className="text-zinc-600 dark:text-zinc-400">
+                        Menor: Bs {p.precio_menor} <span className="text-xs text-red-500">(-{p.descuento_menor}%)</span>
+                      </p>
+                    </td>
+                  )}
                   <td className="px-4 py-3 hidden lg:table-cell text-sm text-zinc-700 dark:text-zinc-300">
                     {p.stock_minimo}
                   </td>

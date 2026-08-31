@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
 import compraService from '../../../services/compra.service';
 import ModalImprimirEtiquetas from '../../../components/ModalImprimirEtiquetas';
+import { usePermission } from '../../../hooks/usePermission';
 
 export default function DetalleCompraModal({ compraId, onClose }) {
+  const { puede } = usePermission();
+  const verCosto = puede('ver_costo', 'compras');
   const [compra, setCompra] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [mostrarEtiquetas, setMostrarEtiquetas] = useState(false);
@@ -73,14 +76,14 @@ export default function DetalleCompraModal({ compraId, onClose }) {
           {/* Tabla de Productos */}
           <div>
             <h4 className="font-semibold text-zinc-900 dark:text-white mb-3">Productos Adquiridos</h4>
-            <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-hidden">
-              <table className="w-full text-left text-sm">
+            <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-hidden overflow-x-auto">
+              <table className="w-full text-left text-sm min-w-[560px]">
                 <thead className="bg-zinc-50 dark:bg-zinc-800/80">
                   <tr>
                     <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-300">Producto</th>
                     <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-300 text-center">Cajas</th>
                     <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-300 text-center">U/Caja</th>
-                    <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-300 text-center">Costo/Caja</th>
+                    {verCosto && <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-300 text-center">Costo/Caja</th>}
                     <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-300 text-right">Subtotal</th>
                   </tr>
                 </thead>
@@ -93,7 +96,7 @@ export default function DetalleCompraModal({ compraId, onClose }) {
                       </td>
                       <td className="px-4 py-3 text-center">{d.cantidad_cajas}</td>
                       <td className="px-4 py-3 text-center">{d.unidades_por_caja}</td>
-                      <td className="px-4 py-3 text-center">Bs {parseFloat(d.precio_por_caja).toFixed(2)}</td>
+                      {verCosto && <td className="px-4 py-3 text-center">Bs {parseFloat(d.precio_por_caja).toFixed(2)}</td>}
                       <td className="px-4 py-3 text-right font-medium">Bs {parseFloat(d.subtotal).toFixed(2)}</td>
                     </tr>
                   ))}
@@ -128,7 +131,7 @@ export default function DetalleCompraModal({ compraId, onClose }) {
               onClick={() => setMostrarEtiquetas(true)}
               className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-500 rounded-xl transition-colors flex items-center gap-2"
             >
-              🏷️ Imprimir etiquetas
+              Imprimir etiquetas
             </button>
           )}
           <button
@@ -143,11 +146,10 @@ export default function DetalleCompraModal({ compraId, onClose }) {
       {mostrarEtiquetas && (
         <ModalImprimirEtiquetas
           items={(compra.detalles || []).map((d) => ({
-            id_producto: d.id_producto,
+            id_lote: d.id_lote,
             nombre: d.producto_nombre,
-            codigo_barras: d.codigo_barras,
-            precio_menor: d.precio_menor,
-            cantidad: 1,
+            codigo_barras: d.lote_codigo_barras,
+            cantidad: d.cantidad_cajas || 1,
           }))}
           onClose={() => setMostrarEtiquetas(false)}
         />

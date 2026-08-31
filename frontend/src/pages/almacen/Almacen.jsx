@@ -5,6 +5,7 @@ import TablaTraslados from './components/TablaTraslados';
 import PanelAlertas from './components/PanelAlertas';
 import DetalleLoteModal from './components/DetalleLoteModal';
 import { ModalEntrada, ModalAjuste, ModalBaja, ModalTraslado } from './components/AlmacenModals';
+import ModalImprimirEtiquetas from '../../components/ModalImprimirEtiquetas';
 import almacenService from '../../services/almacen.service';
 import { usePermission } from '../../hooks/usePermission';
 
@@ -16,7 +17,6 @@ function Toast({ toast }) {
         ? 'bg-green-50 dark:bg-green-900/40 border-green-200 dark:border-green-700 text-green-800 dark:text-green-300'
         : 'bg-red-50 dark:bg-red-900/40 border-red-200 dark:border-red-700 text-red-800 dark:text-red-300'
     }`}>
-      <span className="shrink-0">{toast.tipo === 'ok' ? '✅' : '⚠️'}</span>
       <span className="break-words">{toast.msg}</span>
     </div>
   );
@@ -28,7 +28,7 @@ const TAB_LABELS = { inventario: 'Inventario', traslados: 'Traslados', alertas: 
 export default function Almacen() {
   const { puede } = usePermission();
 
-  const tabsVisibles = TABS.filter((t) => t !== 'traslados' || puede('trasladar', 'almacen'));
+  const tabsVisibles = TABS.filter((t) => t !== 'traslados' || puede('ver', 'traslados'));
 
   const [tab, setTab] = useState('inventario');
   const [lotes, setLotes] = useState([]);
@@ -186,7 +186,7 @@ export default function Almacen() {
       <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-zinc-900 dark:text-white flex items-center gap-2">
-            🏭 Almacén e Inventario
+            Almacén e Inventario
           </h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
             Gestión de lotes, movimientos, traslados y alertas de stock.
@@ -236,6 +236,7 @@ export default function Almacen() {
           onAjustar={(l) => { setLoteActivo(l); setModalType('ajuste'); }}
           onNuevoTraslado={(l) => { setLoteActivo(l); setModalType('traslado'); }}
           onDarBaja={(l) => { setLoteActivo(l); setModalType('baja'); }}
+          onImprimirEtiqueta={(l) => { setLoteActivo(l); setModalType('etiqueta'); }}
         />
       )}
 
@@ -258,6 +259,18 @@ export default function Almacen() {
           onConfirm={handleNuevaEntrada}
           onClose={() => setModalType(null)}
           guardando={guardando}
+        />
+      )}
+
+      {modalType === 'etiqueta' && loteActivo && (
+        <ModalImprimirEtiquetas
+          items={[{
+            id_lote: loteActivo.id_lote,
+            nombre: loteActivo.producto_nombre,
+            codigo_barras: loteActivo.codigo_barras,
+            cantidad: loteActivo.stock_cajas || 1,
+          }]}
+          onClose={() => setModalType(null)}
         />
       )}
 

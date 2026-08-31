@@ -7,6 +7,7 @@ export default function TablaLotes({
   onAjustar,
   onNuevoTraslado,
   onDarBaja,
+  onImprimirEtiqueta,
 }) {
   const { puede } = usePermission();
 
@@ -42,7 +43,9 @@ export default function TablaLotes({
   };
 
   return (
-    <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden">
+    <>
+    {/* ── Vista tabla (desktop) ─────────────────────────────────── */}
+    <div className="hidden sm:block bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
@@ -78,8 +81,8 @@ export default function TablaLotes({
                   </td>
 
                   <td className="px-4 py-3 hidden md:table-cell text-sm text-zinc-600 dark:text-zinc-400">
-                    {l.clasificacion_nombre && <p>🏷️ {l.clasificacion_nombre}</p>}
-                    {l.marca_nombre && <p>🏆 {l.marca_nombre}</p>}
+                    {l.clasificacion_nombre && <p>{l.clasificacion_nombre}</p>}
+                    {l.marca_nombre && <p>{l.marca_nombre}</p>}
                   </td>
 
                   <td className="px-4 py-3 text-center">
@@ -108,15 +111,29 @@ export default function TablaLotes({
 
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-1">
-                      <button
-                        onClick={() => onVerMovimientos(l)}
-                        className="p-1.5 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/30 rounded transition-colors"
-                        title="Ver kardex / historial"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                      </button>
+                      {puede('ver', 'almacen') && (
+                        <button
+                          onClick={() => onImprimirEtiqueta(l)}
+                          className="p-1.5 text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800 rounded transition-colors"
+                          title="Imprimir etiqueta del lote"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0110.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0l.229 2.523a1.125 1.125 0 01-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0021 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 00-1.913-.247M6.34 18H5.25A2.25 2.25 0 013 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 011.913-.247m10.5 0a48.536 48.536 0 00-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18 10.5h.008v.008H18V10.5zm-3 0h.008v.008H15V10.5z" />
+                          </svg>
+                        </button>
+                      )}
+
+                      {puede('ver_movimientos', 'almacen') && (
+                        <button
+                          onClick={() => onVerMovimientos(l)}
+                          className="p-1.5 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/30 rounded transition-colors"
+                          title="Ver kardex / historial"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        </button>
+                      )}
 
                       {puede('ajustar', 'almacen') && (
                         <button
@@ -130,7 +147,7 @@ export default function TablaLotes({
                         </button>
                       )}
 
-                      {puede('trasladar', 'almacen') && l.stock_unidades > 0 && (
+                      {puede('crear', 'traslados') && l.stock_unidades > 0 && (
                         <button
                           onClick={() => onNuevoTraslado(l)}
                           className="p-1.5 text-purple-600 hover:bg-purple-50 dark:text-purple-400 dark:hover:bg-purple-900/30 rounded transition-colors"
@@ -162,5 +179,129 @@ export default function TablaLotes({
         </table>
       </div>
     </div>
+
+    {/* ── Vista tarjetas (móvil) ────────────────────────────────── */}
+    <div className="sm:hidden space-y-3">
+      {lotes.map((l) => {
+        const estVenc = calcularEstadoVencimiento(l.fecha_vencimiento);
+        const stockBajo = l.stock_minimo > 0 && l.stock_unidades < l.stock_minimo;
+        return (
+          <div
+            key={l.id_lote}
+            className={`bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm p-4 ${l.stock_unidades <= 0 ? 'opacity-60 grayscale' : ''}`}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-zinc-900 dark:text-white flex items-center gap-2 flex-wrap">
+                  {l.producto_nombre}
+                  {stockBajo && (
+                    <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 text-[10px] rounded border border-amber-200 dark:border-amber-700 font-bold">
+                      BAJO
+                    </span>
+                  )}
+                </p>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  <span className="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 rounded text-xs font-mono border border-zinc-200 dark:border-zinc-700">
+                    {l.numero_lote || `ID-${l.id_lote}`}
+                  </span>
+                  <span className="text-xs text-zinc-400">{l.sucursal_nombre}</span>
+                </div>
+              </div>
+              <div className="text-right shrink-0">
+                <p className="text-lg font-bold text-zinc-900 dark:text-white">{l.stock_unidades} u</p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">({l.stock_cajas} cajas)</p>
+              </div>
+            </div>
+
+            {(l.clasificacion_nombre || l.marca_nombre) && (
+              <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800 text-sm text-zinc-600 dark:text-zinc-400 space-y-0.5">
+                {l.clasificacion_nombre && <p>{l.clasificacion_nombre}</p>}
+                {l.marca_nombre && <p>{l.marca_nombre}</p>}
+              </div>
+            )}
+
+            <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between gap-2">
+              {l.fecha_vencimiento ? (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm text-zinc-900 dark:text-zinc-100">
+                    {new Date(l.fecha_vencimiento).toLocaleDateString()}
+                  </span>
+                  {estVenc && (
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide border ${estVenc.color}`}>
+                      {estVenc.texto}
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <span className="text-xs text-zinc-400">No aplica</span>
+              )}
+
+              <div className="flex items-center gap-1">
+                {puede('ver', 'almacen') && (
+                  <button
+                    onClick={() => onImprimirEtiqueta(l)}
+                    className="p-1.5 text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800 rounded transition-colors"
+                    title="Imprimir etiqueta del lote"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0110.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0l.229 2.523a1.125 1.125 0 01-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0021 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 00-1.913-.247M6.34 18H5.25A2.25 2.25 0 013 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 011.913-.247m10.5 0a48.536 48.536 0 00-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18 10.5h.008v.008H18V10.5zm-3 0h.008v.008H15V10.5z" />
+                    </svg>
+                  </button>
+                )}
+
+                {puede('ver_movimientos', 'almacen') && (
+                  <button
+                    onClick={() => onVerMovimientos(l)}
+                    className="p-1.5 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/30 rounded transition-colors"
+                    title="Ver kardex / historial"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </button>
+                )}
+
+                {puede('ajustar', 'almacen') && (
+                  <button
+                    onClick={() => onAjustar(l)}
+                    className="p-1.5 text-orange-600 hover:bg-orange-50 dark:text-orange-400 dark:hover:bg-orange-900/30 rounded transition-colors"
+                    title="Ajuste de inventario"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  </button>
+                )}
+
+                {puede('crear', 'traslados') && l.stock_unidades > 0 && (
+                  <button
+                    onClick={() => onNuevoTraslado(l)}
+                    className="p-1.5 text-purple-600 hover:bg-purple-50 dark:text-purple-400 dark:hover:bg-purple-900/30 rounded transition-colors"
+                    title="Trasladar a otra sucursal"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                    </svg>
+                  </button>
+                )}
+
+                {puede('dar_baja_lote', 'almacen') && (
+                  <button
+                    onClick={() => onDarBaja(l)}
+                    className="p-1.5 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/30 rounded transition-colors"
+                    title="Dar de baja lote"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+    </>
   );
 }

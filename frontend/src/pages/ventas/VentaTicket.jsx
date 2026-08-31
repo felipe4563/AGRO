@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import ventaService from '../../services/venta.service';
-import { imprimirConRawBT, centrar, fila, linea } from '../../utils/rawbt';
+import { imprimirConRawBTyLogo, centrar, fila, linea } from '../../utils/rawbt';
 import { useConfiguracion } from '../../contexts/ConfiguracionContext';
 
 const fmt = (n) => Number(n ?? 0).toFixed(2);
@@ -42,7 +42,7 @@ const fmtFecha = (s) =>
 export default function VentaTicket() {
   const { id }               = useParams();
   const navigate             = useNavigate();
-  const { nombreEmpresa, logoUrl } = useConfiguracion();
+  const { nombreEmpresa, logoUrl, tieneLogoPropio } = useConfiguracion();
   const [venta, setVenta]    = useState(null);
   const [cargando, setCargando] = useState(true);
 
@@ -141,13 +141,13 @@ export default function VentaTicket() {
           onClick={() => window.print()}
           className="px-5 py-2 rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold text-sm transition-colors flex items-center gap-2"
         >
-          🖨️ Imprimir USB (80mm)
+          Imprimir USB (80mm)
         </button>
         <button
-          onClick={() => imprimirConRawBT(construirTextoTicket())}
+          onClick={() => imprimirConRawBTyLogo(tieneLogoPropio ? logoUrl : null, construirTextoTicket())}
           className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition-colors flex items-center gap-2"
         >
-          📶 Imprimir Bluetooth (RawBT)
+          Imprimir Bluetooth (RawBT)
         </button>
         <button
           onClick={() => navigate(-1)}
@@ -156,6 +156,19 @@ export default function VentaTicket() {
           ← Volver
         </button>
       </div>
+
+      {/* ── Costo/utilidad: solo visible en pantalla para quien tiene el permiso
+          (el backend ya omite estos campos si no corresponde); nunca sale impreso. */}
+      {venta.costo_total !== undefined && (
+        <div className="no-print flex flex-wrap gap-4 px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 text-sm">
+          <span className="text-amber-800 dark:text-amber-300">
+            <strong>Costo:</strong> Bs {fmt(venta.costo_total)}
+          </span>
+          <span className="text-amber-800 dark:text-amber-300">
+            <strong>Utilidad:</strong> Bs {fmt(venta.utilidad_total)}
+          </span>
+        </div>
+      )}
 
       {/* ── Preview en pantalla ── */}
       <div className="flex justify-center p-2 sm:p-6 bg-zinc-100 dark:bg-zinc-950 min-h-screen">
@@ -245,7 +258,7 @@ export default function VentaTicket() {
                   <div key={`combo-${b.id_combo}`} style={{ marginBottom: '4px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span style={{ maxWidth: '55mm', wordBreak: 'break-word', fontWeight: 'bold' }}>
-                        🎁 COMBO: {b.nombre}
+                        COMBO: {b.nombre}
                       </span>
                       <span style={{ fontWeight: 'bold', whiteSpace: 'nowrap' }}>
                         {b.esRegalo ? 'GRATIS' : `Bs ${fmt(b.subtotal)}`}
@@ -256,7 +269,7 @@ export default function VentaTicket() {
                     </div>
                     {b.esRegalo && (
                       <div style={{ fontSize: '9px', fontWeight: 'bold', paddingLeft: '4px' }}>
-                        🎁 REGALO (canje de puntos)
+                        REGALO (canje de puntos)
                       </div>
                     )}
                   </div>
@@ -278,8 +291,8 @@ export default function VentaTicket() {
                   </div>
                   {(esRegalo || promoPct > 0) && (
                     <div style={{ fontSize: '9px', fontWeight: 'bold', paddingLeft: '4px', display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                      {esRegalo && <span>🎁 REGALO (canje de puntos)</span>}
-                      {!esRegalo && promoPct > 0 && <span>🔥 PROMOCIÓN -{promoPct}%</span>}
+                      {esRegalo && <span>REGALO (canje de puntos)</span>}
+                      {!esRegalo && promoPct > 0 && <span>PROMOCIÓN -{promoPct}%</span>}
                     </div>
                   )}
                   <div style={{ fontSize: '10px', color: '#444', paddingLeft: '4px' }}>

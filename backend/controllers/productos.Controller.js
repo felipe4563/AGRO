@@ -20,6 +20,18 @@ const listarProductos = async (req, res) => {
       ORDER BY p.nombre ASC
     `;
     const [rows] = await db.promise().query(query);
+
+    // Precios y descuentos son datos sensibles: solo se exponen si el rol
+    // tiene el permiso específico 'ver_precios' (no basta con 'ver' productos).
+    if (!req.ability?.can('ver_precios', 'productos')) {
+      rows.forEach((r) => {
+        delete r.precio_mayor;
+        delete r.precio_menor;
+        delete r.descuento_mayor;
+        delete r.descuento_menor;
+      });
+    }
+
     return res.json(rows);
   } catch (err) {
     console.error('[listarProductos]', err);
@@ -72,6 +84,18 @@ const editarProducto = async (req, res) => {
   } = req.body ?? {};
 
   if (!idProductoNum) return res.status(400).json({ error: 'ID inválido' });
+
+  // El endpoint es genérico (checkPermission('editar','productos')), pero los campos
+  // de precio y descuento son sensibles y requieren permisos específicos aparte.
+  const tocaPrecios = precio_mayor !== undefined || precio_menor !== undefined;
+  const tocaDescuentos = descuento_mayor !== undefined || descuento_menor !== undefined;
+
+  if (tocaPrecios && !req.ability?.can('editar_precios', 'productos')) {
+    return res.status(403).json({ error: 'Sin permiso para: editar_precios en productos' });
+  }
+  if (tocaDescuentos && !req.ability?.can('editar_descuentos', 'productos')) {
+    return res.status(403).json({ error: 'Sin permiso para: editar_descuentos en productos' });
+  }
 
   try {
     const [existe] = await db.promise().query('SELECT id_producto FROM producto WHERE id_producto = ? LIMIT 1', [idProductoNum]);

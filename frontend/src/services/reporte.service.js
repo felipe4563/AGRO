@@ -12,11 +12,13 @@ const reporteService = {
   comparativoSucursales: (params) => api.get('/reportes/sucursales/comparativo', { params }),
   caja: (params) => api.get('/reportes/caja', { params }),
   catalogos: {
-    clientes:    () => api.get('/clientes'),
-    proveedores: () => api.get('/proveedores'),
-    usuarios:    () => api.get('/usuarios'),
-    productos:   () => api.get('/productos'),
-    sucursales:  () => api.get('/sucursales')
+    clientes:        () => api.get('/clientes'),
+    proveedores:     () => api.get('/proveedores'),
+    usuarios:        () => api.get('/usuarios'),
+    productos:       () => api.get('/productos'),
+    sucursales:      () => api.get('/sucursales'),
+    marcas:          () => api.get('/catalogos/marcas'),
+    clasificaciones: () => api.get('/catalogos/clasificaciones')
   }
 };
 

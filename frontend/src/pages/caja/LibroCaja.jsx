@@ -14,6 +14,7 @@ const haceUnMesISO = () => {
 
 const ORIGEN_LABEL = {
   VENTA: 'Venta',
+  ANULACION: 'Anulación de venta',
   ABONO: 'Abono crédito',
   GASTO: 'Gasto',
   COMPRA: 'Compra',
@@ -91,7 +92,7 @@ export default function LibroCaja() {
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-zinc-900 dark:text-white flex items-center gap-2">
-            📖 Libro de Caja
+            Libro de Caja
           </h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
             Ingresos y egresos de la sucursal, con saldo acumulado.
@@ -218,8 +219,10 @@ export default function LibroCaja() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-                  {movimientos.map((m, idx) => (
-                    <tr key={idx} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
+                  {movimientos.map((m, idx) => {
+                    const esVentaAnulada = m.origen === 'VENTA' && m.concepto.includes('(anulada)');
+                    return (
+                    <tr key={idx} className={`hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors ${esVentaAnulada ? 'opacity-60' : ''}`}>
                       <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">
                         {new Date(m.fecha).toLocaleDateString()} <span className="text-xs text-zinc-400">{new Date(m.fecha).toLocaleTimeString()}</span>
                       </td>
@@ -227,10 +230,13 @@ export default function LibroCaja() {
                         <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${m.tipo === 'INGRESO' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400' : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400'}`}>
                           {m.tipo === 'INGRESO' ? '↑ Ingreso' : '↓ Egreso'}
                         </span>
+                        {m.origen === 'ANULACION' && (
+                          <span className="ml-1 px-2 py-0.5 rounded-full text-xs font-bold bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300">Anulación</span>
+                        )}
                       </td>
-                      <td className="px-4 py-3 text-zinc-900 dark:text-zinc-100">
+                      <td className={`px-4 py-3 text-zinc-900 dark:text-zinc-100 ${esVentaAnulada ? 'line-through' : ''}`}>
                         {m.concepto}
-                        <p className="text-[10px] text-zinc-500 uppercase font-normal">{ORIGEN_LABEL[m.origen] || m.origen}</p>
+                        <p className="text-[10px] text-zinc-500 uppercase font-normal no-underline">{ORIGEN_LABEL[m.origen] || m.origen}</p>
                       </td>
                       <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">{m.metodo_pago}</td>
                       <td className={`px-4 py-3 text-right font-bold ${m.tipo === 'INGRESO' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
@@ -238,7 +244,8 @@ export default function LibroCaja() {
                       </td>
                       <td className="px-4 py-3 text-right font-semibold text-zinc-700 dark:text-zinc-300">{m.saldo_acumulado.toFixed(2)}</td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -246,11 +253,13 @@ export default function LibroCaja() {
 
           {/* ── Vista tarjetas (móvil) ────────────────────────────── */}
           <div className="sm:hidden space-y-3">
-            {movimientos.map((m, idx) => (
-              <div key={idx} className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm p-4">
+            {movimientos.map((m, idx) => {
+              const esVentaAnulada = m.origen === 'VENTA' && m.concepto.includes('(anulada)');
+              return (
+              <div key={idx} className={`bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm p-4 ${esVentaAnulada ? 'opacity-60' : ''}`}>
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div>
-                    <p className="text-sm font-bold text-zinc-900 dark:text-white">{m.concepto}</p>
+                    <p className={`text-sm font-bold text-zinc-900 dark:text-white ${esVentaAnulada ? 'line-through' : ''}`}>{m.concepto}</p>
                     <p className="text-[10px] text-zinc-500 uppercase">{ORIGEN_LABEL[m.origen] || m.origen}</p>
                   </div>
                   <span className={`px-2 py-0.5 rounded-full text-xs font-bold shrink-0 ${m.tipo === 'INGRESO' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400' : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400'}`}>
@@ -267,7 +276,8 @@ export default function LibroCaja() {
                   <span className="text-xs text-zinc-500 dark:text-zinc-400">Saldo: Bs {m.saldo_acumulado.toFixed(2)}</span>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         </>
       )}
