@@ -26,6 +26,10 @@ const upload = multer({
 // Público: el Login todavía no tiene sesión y necesita el logo/nombre de la empresa.
 router.get('/', ctrl.obtener);
 
+// Público: el manifest/íconos de la PWA se piden al instalar, sin sesión.
+router.get('/pwa/manifest.webmanifest', ctrl.obtenerManifestPWA);
+router.get('/pwa/icono/:size', ctrl.obtenerIconoPWA);
+
 // El resto requiere sesión + permiso de edición.
 router.put('/', authMiddleware, checkPermission('editar', 'configuracion'), ctrl.actualizar);
 router.patch('/logo', authMiddleware, checkPermission('editar', 'configuracion'), upload.single('logo'), ctrl.subirLogo);

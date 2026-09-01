@@ -9,22 +9,12 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['apple-touch-icon.png'],
-      manifest: {
-        name: 'SIS AGRONOMICO',
-        short_name: 'SIS AGRO',
-        description: 'Sistema de gestión agropecuaria: ventas, compras, inventario y reportes.',
-        theme_color: '#10b981',
-        background_color: '#f4f4f5',
-        display: 'standalone',
-        start_url: '/',
-        scope: '/',
-        icons: [
-          { src: '/pwa-192x192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/pwa-512x512.png', sizes: '512x512', type: 'image/png' },
-          { src: '/pwa-maskable-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
-        ],
-      },
+      // El manifest NO lo genera este plugin: se sirve dinámicamente desde el
+      // backend (/api/configuracion/pwa/manifest.webmanifest, enlazado desde
+      // index.html) para que el nombre y el ícono de la PWA instalada reflejen
+      // el logo que el negocio suba en Configuración, en vez de quedar fijos
+      // en lo que había al momento del build.
+      manifest: false,
       workbox: {
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         // El shell (JS/CSS/HTML/íconos) se cachea para que la app instale y
