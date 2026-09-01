@@ -5,6 +5,7 @@ import { usePermission } from '../hooks/usePermission';
 import reporteService    from '../services/reporte.service';
 import almacenService    from '../services/almacen.service';
 import PageWrapper       from '../components/PageWrapper';
+import { usePWAInstall }  from '../hooks/usePWAInstall';
 
 // ── Íconos de línea (inline SVG, sin emojis) ────────────────────────────────
 const ICON_PATHS = {
@@ -230,6 +231,78 @@ function QuickBtn({ to, icon, label, desc, onClick }) {
   );
 }
 
+// ── Tarjeta: instalar la app ─────────────────────────────────────────────────
+// Muestra siempre alguna forma de instalar, aunque el navegador no dispare el
+// evento nativo (pasa seguido: heurísticas de Chrome, o navegadores que ni lo
+// soportan) — en ese caso cae a instrucciones manuales según el navegador.
+function TarjetaInstalarApp({ onCerrar }) {
+  const { puedeInstalar, esIOS, instalar } = usePWAInstall();
+  const [mostrarManual, setMostrarManual] = useState(false);
+
+  const esFirefox = /firefox/i.test(navigator.userAgent);
+
+  const handleClick = () => {
+    if (puedeInstalar) instalar();
+    else setMostrarManual((v) => !v);
+  };
+
+  return (
+    <div className="rounded-2xl border border-emerald-200 dark:border-emerald-800
+                    bg-emerald-50 dark:bg-emerald-900/20 shadow-sm px-5 py-4
+                    flex flex-col sm:flex-row sm:items-center gap-3">
+      <div className="w-10 h-10 rounded-xl bg-emerald-500 text-white shrink-0
+                      flex items-center justify-center">
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v12m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+        </svg>
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-bold text-emerald-800 dark:text-emerald-300">
+          Instalá SIS-AGRO como aplicación
+        </p>
+        <p className="text-xs text-emerald-700/80 dark:text-emerald-400/80">
+          Accedé más rápido desde el celular o la PC, sin abrir el navegador cada vez.
+        </p>
+        {mostrarManual && !puedeInstalar && (
+          <div className="mt-2 text-xs text-emerald-800 dark:text-emerald-300 bg-white/60 dark:bg-black/20 rounded-lg p-3">
+            {esIOS ? (
+              <ol className="list-decimal list-inside space-y-1">
+                <li>Tocá el ícono de <strong>Compartir</strong> en Safari.</li>
+                <li>Elegí <strong>"Agregar a pantalla de inicio"</strong>.</li>
+              </ol>
+            ) : esFirefox ? (
+              <p>Firefox no soporta instalar esta app directamente — usá Chrome, Edge o Brave para instalarla.</p>
+            ) : (
+              <p>
+                Buscá el ícono de instalar (
+                <svg className="inline w-3.5 h-3.5 align-text-bottom" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 17.25v1.007a3 3 0 0 1-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0 1 15 18.257V17.25m6-12V15a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 15V5.25m18 0A2.25 2.25 0 0 0 18.75 3H5.25A2.25 2.25 0 0 0 3 5.25m18 0V12a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 12V5.25" />
+                </svg>
+                ) al final de la barra de direcciones, o abrí el menú <strong>⋮</strong> del navegador y elegí <strong>"Instalar aplicación"</strong>.
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        <button
+          onClick={handleClick}
+          className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold shadow-sm transition-colors"
+        >
+          {puedeInstalar ? 'Instalar ahora' : 'Ver cómo'}
+        </button>
+        <button
+          onClick={onCerrar}
+          aria-label="Cerrar"
+          className="w-8 h-8 flex items-center justify-center rounded-lg text-emerald-700/60 dark:text-emerald-400/60 hover:bg-emerald-100 dark:hover:bg-emerald-800/40"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  DASHBOARD
 // ─────────────────────────────────────────────────────────────────────────────
@@ -237,6 +310,14 @@ export default function Dashboard() {
   const { usuario }  = useAuth();
   const { puede }    = usePermission();
   const navigate     = useNavigate();
+  const { yaInstalada } = usePWAInstall();
+  const [banerInstalarCerrado, setBanerInstalarCerrado] = useState(
+    () => localStorage.getItem('pwa_banner_cerrado') === '1'
+  );
+  const cerrarBanerInstalar = () => {
+    localStorage.setItem('pwa_banner_cerrado', '1');
+    setBanerInstalarCerrado(true);
+  };
 
   // ── Permisos relevantes ──────────────────────────────────────────────────
   const pFinanciero = puede('ganancias',     'reportes');
@@ -320,6 +401,11 @@ export default function Dashboard() {
   return (
     <PageWrapper>
       <div className="max-w-7xl mx-auto space-y-5">
+
+        {/* ═══ INSTALAR APP ══════════════════════════════════════════════════ */}
+        {!yaInstalada && !banerInstalarCerrado && (
+          <TarjetaInstalarApp onCerrar={cerrarBanerInstalar} />
+        )}
 
         {/* ═══ HEADER ════════════════════════════════════════════════════════ */}
         <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800
