@@ -124,9 +124,9 @@ const eliminarLogo = async (req, res) => {
 };
 
 // Público: el manifest de la PWA se pide sin sesión al momento de instalar.
-// Los íconos apuntan siempre a /pwa/icono/:size de este mismo backend (nunca
-// a archivos estáticos del frontend), así el ícono instalado refleja el logo
-// subido en Configuración incluso si cambia después de la instalación inicial.
+// Los íconos son rutas relativas al propio manifest (mismo directorio
+// pwa/), así el ícono instalado refleja el logo subido en Configuración
+// incluso si cambia después de la instalación inicial.
 const obtenerManifestPWA = async (req, res) => {
   try {
     const [rows] = await db.promise().query(
@@ -145,9 +145,9 @@ const obtenerManifestPWA = async (req, res) => {
       background_color: '#f4f4f5',
       theme_color: '#10b981',
       icons: [
-        { src: 'pwa/icono/192', sizes: '192x192', type: 'image/png' },
-        { src: 'pwa/icono/512', sizes: '512x512', type: 'image/png' },
-        { src: 'pwa/icono/512?maskable=1', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+        { src: 'icono/192', sizes: '192x192', type: 'image/png' },
+        { src: 'icono/512', sizes: '512x512', type: 'image/png' },
+        { src: 'icono/512?maskable=1', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
       ],
     });
   } catch (err) {

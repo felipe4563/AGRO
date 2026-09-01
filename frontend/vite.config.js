@@ -37,5 +37,14 @@ export default defineConfig({
     allowedHosts: [
       'virtual-loved-logs-computation.trycloudflare.com'
     ]
-  }
+  },
+  // Solo para `vite preview`: reproduce el mismo-origen que en producción
+  // (donde el proxy reverso sirve /api bajo el propio dominio del frontend),
+  // así el manifest de la PWA resuelve start_url/scope correctamente al
+  // probar el build de forma local.
+  preview: {
+    proxy: {
+      '/api': 'http://localhost:3000',
+    },
+  },
 })
