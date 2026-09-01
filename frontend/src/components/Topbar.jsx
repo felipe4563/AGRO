@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth }           from '../contexts/AuthContext';
 import { useAbilityUpdater } from '../contexts/AbilityContext';
 import { useTheme }          from '../contexts/ThemeContext';
+import { usePWAInstall }     from '../hooks/usePWAInstall';
 
 function Icon({ path, className = 'w-5 h-5' }) {
   return (
@@ -17,6 +18,7 @@ const HAMBURGUESA = 'M4 6h16M4 12h16M4 18h16';
 const SOL   = 'M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z';
 const LUNA  = 'M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z';
 const SALIR = 'M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l3 3m0 0-3 3m3-3H2.25';
+const DESCARGAR = 'M12 3v12m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2';
 
 export default function Topbar({ onAbrirMenu }) {
   const { usuario, logout } = useAuth();
@@ -24,7 +26,14 @@ export default function Topbar({ onAbrirMenu }) {
   const { tema, toggleTema } = useTheme();
   const navigate = useNavigate();
   const [confirmarSalir, setConfirmarSalir] = useState(false);
+  const [mostrarAyudaIOS, setMostrarAyudaIOS] = useState(false);
+  const { puedeInstalar, esIOS, yaInstalada, instalar } = usePWAInstall();
   const isDark = tema === 'dark';
+
+  const handleInstalar = () => {
+    if (puedeInstalar) instalar();
+    else if (esIOS) setMostrarAyudaIOS(true);
+  };
 
   const handleLogout = () => {
     logout();
@@ -53,6 +62,22 @@ export default function Topbar({ onAbrirMenu }) {
       </button>
 
       <div className="flex-1" />
+
+      {!yaInstalada && (puedeInstalar || esIOS) && (
+        <button
+          onClick={handleInstalar}
+          aria-label="Instalar aplicación"
+          title="Instalar aplicación"
+          className="flex items-center gap-1.5 h-9 px-3 rounded-xl shrink-0 text-sm font-medium
+                     text-emerald-700 dark:text-emerald-400
+                     bg-emerald-50 dark:bg-emerald-500/10
+                     hover:bg-emerald-100 dark:hover:bg-emerald-500/20
+                     transition-colors"
+        >
+          <Icon path={DESCARGAR} className="w-4 h-4" />
+          <span className="hidden sm:inline">Instalar app</span>
+        </button>
+      )}
 
       <button
         onClick={toggleTema}
@@ -128,6 +153,28 @@ export default function Topbar({ onAbrirMenu }) {
           </>
         )}
       </div>
+
+      {mostrarAyudaIOS && (
+        <>
+          <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setMostrarAyudaIOS(false)} />
+          <div className="fixed inset-x-4 bottom-4 sm:inset-x-auto sm:right-4 sm:w-80 z-50
+                          bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700
+                          rounded-2xl shadow-xl p-4">
+            <h3 className="font-bold text-zinc-900 dark:text-white mb-2">Instalar en iPhone/iPad</h3>
+            <ol className="text-sm text-zinc-600 dark:text-zinc-300 space-y-1.5 list-decimal list-inside">
+              <li>Tocá el ícono de <strong>Compartir</strong> en Safari.</li>
+              <li>Elegí <strong>"Agregar a pantalla de inicio"</strong>.</li>
+              <li>Confirmá tocando <strong>"Agregar"</strong>.</li>
+            </ol>
+            <button
+              onClick={() => setMostrarAyudaIOS(false)}
+              className="mt-3 w-full py-2 rounded-xl bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-200 text-sm font-medium hover:bg-zinc-200 dark:hover:bg-zinc-600 transition-colors"
+            >
+              Entendido
+            </button>
+          </div>
+        </>
+      )}
     </header>
   );
 }
