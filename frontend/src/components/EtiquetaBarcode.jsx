@@ -4,7 +4,7 @@ import JsBarcode from 'jsbarcode';
 // Alto y grosor de las barras del código. Editar estos valores para
 // probar distintos tamaños — el código ocupa casi toda la etiqueta.
 export const BARCODE_HEIGHT_MM = 13;
-export const BARCODE_BAR_WIDTH = 1.1;
+export const BARCODE_BAR_WIDTH = 0.9;
 export const BARCODE_FONT_SIZE = 9;
 
 // Etiqueta física de 30mm x 20mm: solo código de barras + su número.

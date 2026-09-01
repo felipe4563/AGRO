@@ -12,19 +12,23 @@ const claveItem = (it) => it.id_producto ?? it.id_lote;
 // tamaño de papel del driver DP23 más cercano a 60x20mm (ej. "F 60x30mm"
 // si no hay uno exacto de 60x20).
 const ETIQUETAS_POR_FILA = 2;
-const LABEL_WIDTH_MM = 30;
-const LABEL_HEIGHT_MM = 20;
+const LABEL_WIDTH_MM = 35;
+const LABEL_HEIGHT_MM = 25;
 // El ancho real de papel del driver es fijo (60mm, ej. "F 60x40mm") — pasarse
 // de ese ancho hace que el navegador recorte directamente en la vista previa.
 // No agregar margen extra que sume más de 60mm en total.
 const COLUMN_GAP_MM = 0;
-const PAGE_WIDTH_MM = LABEL_WIDTH_MM * ETIQUETAS_POR_FILA;
+// El cabezal también imprime todo el bloque (ambas columnas) corrido hacia
+// la izquierda respecto del casillero físico — se corrige con este margen
+// izquierdo. Ajustar este único valor si hace falta recalibrar.
+const MARGEN_IZQUIERDO_MM = -2.5;
+const PAGE_WIDTH_MM = LABEL_WIDTH_MM * ETIQUETAS_POR_FILA + MARGEN_IZQUIERDO_MM;
 // El cabezal imprime la 2da columna ~4mm más a la derecha de donde
 // arranca su casillero físico (medido con regla). La corremos 4mm a la
 // derecha; como el ancho total no puede pasar de 60mm (si no, el
 // navegador recorta), la 2da columna queda 4mm más angosta (26mm) para
 // no salirse de la página.
-const OFFSET_SEGUNDA_COLUMNA_MM = 3;
+const OFFSET_SEGUNDA_COLUMNA_MM = 4;
 const ANCHO_SEGUNDA_COLUMNA_MM = LABEL_WIDTH_MM - OFFSET_SEGUNDA_COLUMNA_MM;
 
 // items: [{ id_producto, nombre, codigo_barras, precio_menor, cantidad }]
@@ -182,7 +186,7 @@ export default function ModalImprimirEtiquetas({ items: itemsIniciales, onClose 
             display: block !important;
             position: fixed;
             top: 0;
-            left: 0;
+            left: ${MARGEN_IZQUIERDO_MM}mm;
           }
           .etiqueta-fila {
             display: flex;

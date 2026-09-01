@@ -3,11 +3,164 @@ import { usePermission } from '../../../hooks/usePermission';
 
 const API_BASE = import.meta.env.VITE_API_URL.replace('/api', '');
 
+// Combobox con autocompletado + botón "+" para dar de alta un valor de
+// catálogo (clasificación, marca o unidad) sin salir del formulario de
+// producto. `campos` describe los inputs del alta rápida:
+// [{ name, placeholder }]. `getId`/`getLabel` leen el id y el texto a
+// mostrar/filtrar de cada opción (cada catálogo usa su propia PK).
+function SelectConAlta({ label, required, value, onChange, opciones, getId, getLabel, campos, onCrear, disabled }) {
+  const [creando, setCreando] = useState(false);
+  const [nuevo, setNuevo] = useState({});
+  const [guardandoNuevo, setGuardandoNuevo] = useState(false);
+  const [error, setError] = useState('');
+  const [texto, setTexto] = useState('');
+  const [abierto, setAbierto] = useState(false);
+  const contenedorRef = useRef(null);
+
+  // Mientras se escribe/navega el dropdown (abierto=true) el texto es libre;
+  // al cerrarse, se sincroniza con la etiqueta de la opción realmente
+  // seleccionada (o queda vacío si no hay ninguna válida).
+  useEffect(() => {
+    if (abierto) return;
+    if (!value) { setTexto(''); return; }
+    const seleccionada = opciones.find((o) => String(getId(o)) === String(value));
+    setTexto(seleccionada ? getLabel(seleccionada) : '');
+  }, [value, opciones, abierto]);
+
+  useEffect(() => {
+    const handleClickFuera = (e) => {
+      if (contenedorRef.current && !contenedorRef.current.contains(e.target)) setAbierto(false);
+    };
+    document.addEventListener('mousedown', handleClickFuera);
+    return () => document.removeEventListener('mousedown', handleClickFuera);
+  }, []);
+
+  const filtradas = texto.trim()
+    ? opciones.filter((o) => getLabel(o).toLowerCase().includes(texto.trim().toLowerCase()))
+    : opciones;
+
+  const seleccionar = (op) => {
+    onChange(String(getId(op)));
+    setTexto(getLabel(op));
+    setAbierto(false);
+  };
+
+  const abrirAlta = () => {
+    setNuevo(Object.fromEntries(campos.map((c) => [c.name, ''])));
+    setError('');
+    setCreando(true);
+  };
+
+  const faltanCampos = campos.some((c) => !nuevo[c.name]?.trim());
+
+  const confirmarAlta = async () => {
+    if (faltanCampos) return;
+    setGuardandoNuevo(true);
+    setError('');
+    try {
+      const nuevoId = await onCrear(nuevo);
+      onChange(String(nuevoId));
+      setCreando(false);
+    } catch (err) {
+      setError(err.response?.data?.error || 'No se pudo crear');
+    } finally {
+      setGuardandoNuevo(false);
+    }
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400">
+          {label}{required && ' *'}
+        </label>
+        {!creando && onCrear && (
+          <button
+            type="button"
+            onClick={abrirAlta}
+            className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline"
+          >
+            + Nuevo
+          </button>
+        )}
+      </div>
+
+      {creando ? (
+        <div className="space-y-1.5 p-2 bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-200 dark:border-emerald-800 rounded-lg">
+          {campos.map((c) => (
+            <input
+              key={c.name}
+              type="text"
+              value={nuevo[c.name] || ''}
+              onChange={(e) => setNuevo((prev) => ({ ...prev, [c.name]: e.target.value }))}
+              placeholder={c.placeholder}
+              autoFocus={c.name === 'nombre'}
+              className="w-full px-2.5 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-md text-xs text-zinc-900 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500/50"
+            />
+          ))}
+          {error && <p className="text-[11px] text-red-600 dark:text-red-400">{error}</p>}
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              onClick={confirmarAlta}
+              disabled={guardandoNuevo || faltanCampos}
+              className="flex-1 py-1 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 rounded-md disabled:opacity-50"
+            >
+              {guardandoNuevo ? 'Creando...' : 'Crear'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setCreando(false)}
+              disabled={guardandoNuevo}
+              className="px-2 py-1 text-xs font-medium text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="relative" ref={contenedorRef}>
+          <input
+            type="text"
+            required={required}
+            value={texto}
+            placeholder="Escriba para buscar..."
+            onChange={(e) => { setTexto(e.target.value); if (value) onChange(''); }}
+            onFocus={() => setAbierto(true)}
+            disabled={disabled}
+            className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 outline-none transition-all disabled:opacity-60"
+          />
+          {abierto && (
+            <ul className="absolute z-20 mt-1 w-full max-h-48 overflow-y-auto bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg">
+              {filtradas.length === 0 ? (
+                <li className="px-3 py-1.5 text-sm text-zinc-400">Sin coincidencias</li>
+              ) : (
+                filtradas.map((op) => (
+                  <li
+                    key={getId(op)}
+                    onClick={() => seleccionar(op)}
+                    className="px-3 py-1.5 text-sm cursor-pointer hover:bg-emerald-50 dark:hover:bg-emerald-900/30 text-zinc-800 dark:text-zinc-100"
+                  >
+                    {getLabel(op)}
+                  </li>
+                ))
+              )}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ModalCrearEditar({
   producto,
   clasificaciones = [],
   marcas = [],
   unidades = [],
+  onCrearClasificacion,
+  onCrearMarca,
+  onCrearUnidad,
   onConfirm,
   onClose,
   guardando
@@ -111,59 +264,44 @@ export function ModalCrearEditar({
             </div>
 
             {/* Fila 2: Catálogos */}
-            <div>
-              <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1">
-                Clasificación *
-              </label>
-              <select
-                name="id_clasificacion"
-                required
-                value={formData.id_clasificacion}
-                onChange={handleChange}
-                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 outline-none transition-all"
-              >
-                <option value="">Seleccionar...</option>
-                {clasificaciones.map(c => (
-                  <option key={c.id_clasificacion} value={c.id_clasificacion}>{c.nombre}</option>
-                ))}
-              </select>
-            </div>
+            <SelectConAlta
+              label="Clasificación"
+              required
+              value={formData.id_clasificacion}
+              onChange={(v) => setFormData((prev) => ({ ...prev, id_clasificacion: v }))}
+              opciones={clasificaciones}
+              getId={(c) => c.id_clasificacion}
+              getLabel={(c) => c.nombre}
+              campos={[{ name: 'nombre', placeholder: 'Ej. Fertilizantes' }]}
+              onCrear={onCrearClasificacion}
+            />
 
-            <div>
-              <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1">
-                Marca *
-              </label>
-              <select
-                name="id_marca"
-                required
-                value={formData.id_marca}
-                onChange={handleChange}
-                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 outline-none transition-all"
-              >
-                <option value="">Seleccionar...</option>
-                {marcas.map(m => (
-                  <option key={m.id_marca} value={m.id_marca}>{m.nombre}</option>
-                ))}
-              </select>
-            </div>
+            <SelectConAlta
+              label="Marca"
+              required
+              value={formData.id_marca}
+              onChange={(v) => setFormData((prev) => ({ ...prev, id_marca: v }))}
+              opciones={marcas}
+              getId={(m) => m.id_marca}
+              getLabel={(m) => m.nombre}
+              campos={[{ name: 'nombre', placeholder: 'Ej. Bayer' }]}
+              onCrear={onCrearMarca}
+            />
 
-            <div>
-              <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1">
-                Unidad de Medida *
-              </label>
-              <select
-                name="id_unidad"
-                required
-                value={formData.id_unidad}
-                onChange={handleChange}
-                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 outline-none transition-all"
-              >
-                <option value="">Seleccionar...</option>
-                {unidades.map(u => (
-                  <option key={u.id_unidad} value={u.id_unidad}>{u.nombre} ({u.abreviatura})</option>
-                ))}
-              </select>
-            </div>
+            <SelectConAlta
+              label="Unidad de Medida"
+              required
+              value={formData.id_unidad}
+              onChange={(v) => setFormData((prev) => ({ ...prev, id_unidad: v }))}
+              opciones={unidades}
+              getId={(u) => u.id_unidad}
+              getLabel={(u) => `${u.nombre} (${u.abreviatura})`}
+              campos={[
+                { name: 'nombre', placeholder: 'Ej. Kilogramo' },
+                { name: 'abreviatura', placeholder: 'Ej. kg' },
+              ]}
+              onCrear={onCrearUnidad}
+            />
 
             {/* Fila 3: Precios Mayor — datos sensibles, requieren ver_precios */}
             {puedeVerPrecios && (

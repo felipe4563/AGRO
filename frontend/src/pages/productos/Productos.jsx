@@ -162,6 +162,24 @@ export default function Productos() {
     }
   };
 
+  const handleCrearClasificacion = async (datos) => {
+    const { data } = await catalogoService.crearClasificacion(datos);
+    setClasificaciones((prev) => [...prev, { id_clasificacion: data.id, nombre: datos.nombre.trim() }]);
+    return data.id;
+  };
+
+  const handleCrearMarca = async (datos) => {
+    const { data } = await catalogoService.crearMarca(datos);
+    setMarcas((prev) => [...prev, { id_marca: data.id, nombre: datos.nombre.trim() }]);
+    return data.id;
+  };
+
+  const handleCrearUnidad = async (datos) => {
+    const { data } = await catalogoService.crearUnidad(datos);
+    setUnidades((prev) => [...prev, { id_unidad: data.id, nombre: datos.nombre.trim(), abreviatura: datos.abreviatura.trim() }]);
+    return data.id;
+  };
+
   const handleToggleActivo = async (p) => {
     try {
       const nuevoEstado = p.activo ? 0 : 1;
@@ -249,6 +267,9 @@ export default function Productos() {
           clasificaciones={clasificaciones}
           marcas={marcas}
           unidades={unidades}
+          onCrearClasificacion={handleCrearClasificacion}
+          onCrearMarca={handleCrearMarca}
+          onCrearUnidad={handleCrearUnidad}
           onConfirm={handleGuardarProducto}
           onClose={() => setModalType(null)}
           guardando={guardando}

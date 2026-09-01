@@ -117,6 +117,24 @@ export default function NuevaCompra() {
     }
   };
 
+  const handleCrearClasificacion = async (datos) => {
+    const { data } = await catalogoService.crearClasificacion(datos);
+    setClasificaciones((prev) => [...prev, { id_clasificacion: data.id, nombre: datos.nombre.trim() }]);
+    return data.id;
+  };
+
+  const handleCrearMarca = async (datos) => {
+    const { data } = await catalogoService.crearMarca(datos);
+    setMarcas((prev) => [...prev, { id_marca: data.id, nombre: datos.nombre.trim() }]);
+    return data.id;
+  };
+
+  const handleCrearUnidad = async (datos) => {
+    const { data } = await catalogoService.crearUnidad(datos);
+    setUnidades((prev) => [...prev, { id_unidad: data.id, nombre: datos.nombre.trim(), abreviatura: datos.abreviatura.trim() }]);
+    return data.id;
+  };
+
   const handleSubirImagenNuevoProducto = async (formDataImagen) => {
     if (!productoRecienCreado) return;
     setGuardandoProducto(true);
@@ -554,6 +572,9 @@ export default function NuevaCompra() {
           clasificaciones={clasificaciones}
           marcas={marcas}
           unidades={unidades}
+          onCrearClasificacion={handleCrearClasificacion}
+          onCrearMarca={handleCrearMarca}
+          onCrearUnidad={handleCrearUnidad}
           onConfirm={handleCrearProductoNuevo}
           onClose={() => setModalNuevoProducto(false)}
           guardando={guardandoProducto}

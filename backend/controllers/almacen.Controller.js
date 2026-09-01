@@ -70,9 +70,9 @@ const generarCodigoBarrasLote = async (req, res) => {
       return res.json({ codigo_barras: rows[0].codigo_barras, generado: false });
     }
 
-    // Mismo esquema determinístico que al confirmar una compra: 800000000 + id_lote,
+    // Mismo esquema determinístico que al confirmar una compra: 100000 + id_lote,
     // fuera del rango de los códigos de producto (900000 + id_producto).
-    const codigo = String(800000000 + idLoteNum);
+    const codigo = String(100000 + idLoteNum);
     await db.promise().query('UPDATE lote SET codigo_barras = ? WHERE id_lote = ?', [codigo, idLoteNum]);
 
     return res.json({ codigo_barras: codigo, generado: true });

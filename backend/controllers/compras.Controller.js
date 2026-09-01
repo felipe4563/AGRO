@@ -192,7 +192,7 @@ const confirmar = async (req, res) => {
 
       // a.1 Código de barras propio del lote — determinístico a partir de su id,
       // sin choque posible con los de producto (que usan 900000 + id_producto).
-      const codigoBarrasLote = String(800000000 + id_lote_nuevo);
+      const codigoBarrasLote = String(100000 + id_lote_nuevo);
       await connection.query('UPDATE lote SET codigo_barras = ? WHERE id_lote = ?', [codigoBarrasLote, id_lote_nuevo]);
 
       // b. Actualizar el detalle de compra con el id_lote generado

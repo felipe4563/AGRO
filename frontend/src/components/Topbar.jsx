@@ -25,7 +25,6 @@ export default function Topbar({ onAbrirMenu }) {
   const { limpiar }         = useAbilityUpdater();
   const { tema, toggleTema } = useTheme();
   const navigate = useNavigate();
-  const [confirmarSalir, setConfirmarSalir] = useState(false);
   const [mostrarAyudaIOS, setMostrarAyudaIOS] = useState(false);
   const { puedeInstalar, esIOS, yaInstalada, instalar } = usePWAInstall();
   const isDark = tema === 'dark';
@@ -121,38 +120,19 @@ export default function Topbar({ onAbrirMenu }) {
         )}
       </Link>
 
-      <div className="relative shrink-0">
-        <button
-          onClick={() => setConfirmarSalir((v) => !v)}
-          aria-label="Cerrar sesión"
-          title="Cerrar sesión"
-          className="w-9 h-9 flex items-center justify-center rounded-xl
-                     text-zinc-500 dark:text-zinc-400
-                     hover:bg-red-50 dark:hover:bg-red-500/10
-                     hover:text-red-600 dark:hover:text-red-400
-                     transition-colors"
-        >
-          <Icon path={SALIR} />
-        </button>
-        {confirmarSalir && (
-          <>
-            <div className="fixed inset-0 z-40" onClick={() => setConfirmarSalir(false)} />
-            <div className="absolute right-0 top-full mt-1 z-50 w-44 rounded-xl
-                            bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700
-                            shadow-lg overflow-hidden">
-              <button
-                onClick={handleLogout}
-                className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-medium
-                           text-red-600 dark:text-red-400
-                           hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
-              >
-                <Icon path={SALIR} className="w-4 h-4" />
-                Cerrar sesión
-              </button>
-            </div>
-          </>
-        )}
-      </div>
+      <button
+        onClick={handleLogout}
+        aria-label="Cerrar sesión"
+        title="Cerrar sesión"
+        className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-sm font-medium shrink-0
+                   text-zinc-500 dark:text-zinc-400
+                   hover:bg-red-50 dark:hover:bg-red-500/10
+                   hover:text-red-600 dark:hover:text-red-400
+                   transition-colors"
+      >
+        <Icon path={SALIR} className="w-4 h-4 shrink-0" />
+        <span className="hidden sm:inline">Cerrar sesión</span>
+      </button>
 
       {mostrarAyudaIOS && (
         <>
