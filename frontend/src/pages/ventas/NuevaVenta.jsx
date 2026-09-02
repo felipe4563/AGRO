@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { Html5Qrcode } from 'html5-qrcode';
 import ventaService from '../../services/venta.service';
@@ -23,6 +24,116 @@ const METODOS_PAGO = [
 // escaneando. Evita que el mismo código, mientras sigue en cuadro, se agregue
 // decenas de veces por segundo antes de que el usuario mueva la cámara.
 const PAUSA_TRAS_ESCANEO_MS = 1200;
+
+// Botón "elegir lote" sobre la tarjeta de producto: permite fijar la venta a
+// un lote puntual (ej. el que está por vencer, o cuando su código de barras
+// no sirve) sin necesidad de escanear. Los lotes se piden al vuelo, recién al
+// abrir el desplegable, para no cargar esa info de entrada con todo el catálogo.
+function BotonElegirLote({ producto, onElegir }) {
+  const [abierto, setAbierto] = useState(false);
+  const [lotes, setLotes] = useState(null);
+  const [cargando, setCargando] = useState(false);
+  const [posicion, setPosicion] = useState(null);
+  const botonRef = useRef(null);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (!abierto) return;
+    const handleClickFuera = (e) => {
+      if (menuRef.current?.contains(e.target) || botonRef.current?.contains(e.target)) return;
+      setAbierto(false);
+    };
+    const cerrar = () => setAbierto(false);
+    document.addEventListener('mousedown', handleClickFuera);
+    window.addEventListener('scroll', cerrar, true);
+    window.addEventListener('resize', cerrar);
+    return () => {
+      document.removeEventListener('mousedown', handleClickFuera);
+      window.removeEventListener('scroll', cerrar, true);
+      window.removeEventListener('resize', cerrar);
+    };
+  }, [abierto]);
+
+  const abrir = async (e) => {
+    e.stopPropagation();
+    const rect = botonRef.current.getBoundingClientRect();
+    // Ancho del menú (224px = w-56) — si no entra a la derecha, lo alineamos
+    // por la izquierda del botón en vez de salirse de la pantalla.
+    const ANCHO_MENU = 224;
+    const left = rect.right - ANCHO_MENU < 8 ? rect.left : rect.right - ANCHO_MENU;
+    setPosicion({ top: rect.bottom + 6, left });
+    setAbierto((v) => !v);
+    if (lotes === null) {
+      setCargando(true);
+      try {
+        const { data } = await ventaService.listarLotesProducto(producto.id_producto);
+        setLotes(data);
+      } catch {
+        setLotes([]);
+      } finally {
+        setCargando(false);
+      }
+    }
+  };
+
+  const diasParaVencer = (fecha) => fecha ? Math.ceil((new Date(fecha) - new Date()) / 86400000) : null;
+
+  return (
+    <>
+      <button
+        ref={botonRef}
+        type="button"
+        onClick={abrir}
+        title="Elegir lote"
+        className="absolute top-1.5 right-1.5 z-10 w-6 h-6 rounded-full bg-white/90 dark:bg-zinc-900/90 border border-zinc-200 dark:border-zinc-700 flex items-center justify-center text-zinc-500 hover:text-emerald-600 hover:border-emerald-500 shadow-sm"
+      >
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375" />
+        </svg>
+      </button>
+      {abierto && posicion && createPortal(
+        <div
+          ref={menuRef}
+          onClick={(e) => e.stopPropagation()}
+          style={{ position: 'fixed', top: posicion.top, left: posicion.left, width: 224 }}
+          className="z-[60] max-h-60 overflow-y-auto bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-xl"
+        >
+          <p className="px-3 py-1.5 text-[11px] font-semibold text-zinc-400 border-b border-zinc-100 dark:border-zinc-700">Elegir lote</p>
+          {cargando ? (
+            <p className="px-3 py-2 text-xs text-zinc-400">Cargando...</p>
+          ) : !lotes || lotes.length === 0 ? (
+            <p className="px-3 py-2 text-xs text-zinc-400">Sin lotes activos</p>
+          ) : (
+            lotes.map((l) => {
+              const dias = diasParaVencer(l.fecha_vencimiento);
+              return (
+                <button
+                  key={l.id_lote}
+                  type="button"
+                  onClick={() => { onElegir(l); setAbierto(false); }}
+                  className="w-full text-left px-3 py-2 text-xs hover:bg-emerald-50 dark:hover:bg-emerald-900/20 flex flex-col gap-0.5 border-b border-zinc-50 dark:border-zinc-900 last:border-0"
+                >
+                  <span className="font-semibold text-zinc-800 dark:text-zinc-100">
+                    Lote {l.numero_lote || l.id_lote}
+                  </span>
+                  <span className="flex items-center justify-between text-zinc-500 dark:text-zinc-400">
+                    <span>{l.stock_unidades} u</span>
+                    {l.fecha_vencimiento && (
+                      <span className={dias !== null && dias <= 30 ? 'text-amber-600 dark:text-amber-400 font-medium' : ''}>
+                        Vence {new Date(l.fecha_vencimiento).toLocaleDateString('es-BO')}
+                      </span>
+                    )}
+                  </span>
+                </button>
+              );
+            })
+          )}
+        </div>,
+        document.body
+      )}
+    </>
+  );
+}
 
 function EscanerCamaraModal({ onDetectado, onClose }) {
   const [error, setError] = useState('');
@@ -956,6 +1067,7 @@ export default function NuevaVenta() {
                       -{p.descuento_promocion_pct}%
                     </span>
                   )}
+                  <BotonElegirLote producto={p} onElegir={(lote) => agregarAlCarrito(p, lote)} />
                 </div>
                 <div className="p-3 flex flex-col flex-1">
                 <h3 className="font-bold text-zinc-900 dark:text-white leading-tight mb-1 text-sm line-clamp-2">{p.nombre}</h3>

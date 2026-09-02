@@ -7,3 +7,4 @@ backend/backups/
 frontend/dist/
 *.log
 *.sql
+deploy/NUEVO-CLIENTE.md

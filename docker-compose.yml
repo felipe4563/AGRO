@@ -54,9 +54,11 @@ services:
         VITE_API_URL: /api
     restart: unless-stopped
     ports:
-      # Solo expuesto en localhost del VPS — el proxy reverso existente
-      # (nginx/Traefik) es el que atiende https://samagro.rusoft.dev y reenvía aquí.
-      - "127.0.0.1:8083:80"
+      # Solo expuesto en localhost del VPS — el proxy reverso Nginx del VPS es
+      # el que atiende el dominio público (HTTPS) y reenvía aquí. HOST_PORT es
+      # propio de cada cliente (ver deploy/nuevo-cliente.sh) para poder correr
+      # varias instancias (una por agropecuaria) en el mismo VPS sin chocar.
+      - "127.0.0.1:${HOST_PORT:-8083}:80"
     depends_on:
       - backend
 

@@ -5,6 +5,7 @@ const { authMiddleware, checkPermission } = require('../middlewares/authMiddlewa
 router.use(authMiddleware);
 
 router.get('/pos-productos', checkPermission('crear', 'ventas'), ctrl.listarProductosPOS);
+router.get('/pos-productos/:id/lotes', checkPermission('crear', 'ventas'), ctrl.listarLotesProductoPOS);
 
 router.get('/', checkPermission('ver', 'ventas'), ctrl.listar);
 router.get('/:id', checkPermission('ver', 'ventas'), ctrl.obtener);

@@ -795,6 +795,28 @@ const listarProductosPOS = async (req, res) => {
   }
 };
 
+// Lotes activos de un producto en la sucursal del cajero, para elegir uno a
+// mano al vender (ej. priorizar el que está por vencer, o el código de barras
+// del lote no sirve) sin tener que escanear. Se pide al vuelo por producto —
+// no viaja junto con el catálogo completo del POS para no pesar esa carga.
+const listarLotesProductoPOS = async (req, res) => {
+  const id_sucursal = req.user.id_sucursal;
+  const { id } = req.params;
+  try {
+    const [rows] = await db.promise().query(
+      `SELECT id_lote, numero_lote, fecha_vencimiento, stock_unidades, unidades_por_caja
+       FROM lote
+       WHERE id_producto = ? AND id_sucursal = ? AND activo = 1 AND stock_unidades > 0
+       ORDER BY fecha_vencimiento ASC, id_lote ASC`,
+      [id, id_sucursal]
+    );
+    return res.json(rows);
+  } catch (err) {
+    console.error('[listarLotesProductoPOS]', err);
+    return res.status(500).json({ error: 'Error al obtener los lotes del producto' });
+  }
+};
+
 const bancoEconomico = require('../services/bancoEconomico.service');
 
 const generarQrBanco = async (req, res) => {
@@ -851,4 +873,5 @@ module.exports = {
   estadoQrBanco,
   anularQrBanco,
   listarProductosPOS,
+  listarLotesProductoPOS,
 };

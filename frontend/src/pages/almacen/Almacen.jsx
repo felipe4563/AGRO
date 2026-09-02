@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import PageWrapper from '../../components/PageWrapper';
 import TablaLotes from './components/TablaLotes';
 import TablaTraslados from './components/TablaTraslados';
@@ -43,6 +43,66 @@ export default function Almacen() {
   const [modalType, setModalType] = useState(null);
   const [loteActivo, setLoteActivo] = useState(null);
   const [detalleId, setDetalleId] = useState(null);
+
+  const [busqueda, setBusqueda] = useState('');
+  const [filtroSucursal, setFiltroSucursal] = useState('');
+  const [filtroClasificacion, setFiltroClasificacion] = useState('');
+  const [filtroMarca, setFiltroMarca] = useState('');
+  const [filtroEstado, setFiltroEstado] = useState('');
+
+  const sucursales = useMemo(() => [...new Set(lotes.map((l) => l.sucursal_nombre).filter(Boolean))].sort(), [lotes]);
+  const clasificaciones = useMemo(() => [...new Set(lotes.map((l) => l.clasificacion_nombre).filter(Boolean))].sort(), [lotes]);
+  const marcas = useMemo(() => [...new Set(lotes.map((l) => l.marca_nombre).filter(Boolean))].sort(), [lotes]);
+
+  const estadoDelLote = (l) => {
+    if (l.stock_minimo > 0 && l.stock_unidades < l.stock_minimo) return 'bajo';
+    if (!l.fecha_vencimiento) return 'vigente';
+    const dias = Math.ceil((new Date(l.fecha_vencimiento) - new Date()) / (1000 * 60 * 60 * 24));
+    if (dias < 0) return 'vencido';
+    if (dias <= 30) return 'por_vencer';
+    return 'vigente';
+  };
+
+  const lotesFiltrados = useMemo(() => {
+    const b = busqueda.trim().toLowerCase();
+    return lotes.filter((l) => {
+      if (b && !l.producto_nombre?.toLowerCase().includes(b) && !(l.numero_lote || '').toLowerCase().includes(b)) return false;
+      if (filtroSucursal && l.sucursal_nombre !== filtroSucursal) return false;
+      if (filtroClasificacion && l.clasificacion_nombre !== filtroClasificacion) return false;
+      if (filtroMarca && l.marca_nombre !== filtroMarca) return false;
+      if (filtroEstado && estadoDelLote(l) !== filtroEstado) return false;
+      return true;
+    });
+  }, [lotes, busqueda, filtroSucursal, filtroClasificacion, filtroMarca, filtroEstado]);
+
+  const hayFiltrosActivos = busqueda || filtroSucursal || filtroClasificacion || filtroMarca || filtroEstado;
+  const limpiarFiltros = () => {
+    setBusqueda(''); setFiltroSucursal(''); setFiltroClasificacion(''); setFiltroMarca(''); setFiltroEstado('');
+  };
+
+  const [busquedaTraslado, setBusquedaTraslado] = useState('');
+  const [filtroSucOrigen, setFiltroSucOrigen] = useState('');
+  const [filtroSucDestino, setFiltroSucDestino] = useState('');
+  const [filtroEstadoTraslado, setFiltroEstadoTraslado] = useState('');
+
+  const sucursalesOrigen = useMemo(() => [...new Set(traslados.map((t) => t.sucursal_origen).filter(Boolean))].sort(), [traslados]);
+  const sucursalesDestino = useMemo(() => [...new Set(traslados.map((t) => t.sucursal_destino).filter(Boolean))].sort(), [traslados]);
+
+  const trasladosFiltrados = useMemo(() => {
+    const b = busquedaTraslado.trim().toLowerCase();
+    return traslados.filter((t) => {
+      if (b && !t.producto_nombre?.toLowerCase().includes(b) && !(t.numero_lote || '').toLowerCase().includes(b)) return false;
+      if (filtroSucOrigen && t.sucursal_origen !== filtroSucOrigen) return false;
+      if (filtroSucDestino && t.sucursal_destino !== filtroSucDestino) return false;
+      if (filtroEstadoTraslado && t.estado !== filtroEstadoTraslado) return false;
+      return true;
+    });
+  }, [traslados, busquedaTraslado, filtroSucOrigen, filtroSucDestino, filtroEstadoTraslado]);
+
+  const hayFiltrosTrasladoActivos = busquedaTraslado || filtroSucOrigen || filtroSucDestino || filtroEstadoTraslado;
+  const limpiarFiltrosTraslado = () => {
+    setBusquedaTraslado(''); setFiltroSucOrigen(''); setFiltroSucDestino(''); setFiltroEstadoTraslado('');
+  };
 
   const mostrarToast = (tipo, msg) => {
     setToast({ tipo, msg });
@@ -229,24 +289,125 @@ export default function Almacen() {
 
       {/* Tab content */}
       {tab === 'inventario' && (
-        <TablaLotes
-          lotes={lotes}
-          cargando={cargandoLotes}
-          onVerMovimientos={(l) => setDetalleId(l.id_lote)}
-          onAjustar={(l) => { setLoteActivo(l); setModalType('ajuste'); }}
-          onNuevoTraslado={(l) => { setLoteActivo(l); setModalType('traslado'); }}
-          onDarBaja={(l) => { setLoteActivo(l); setModalType('baja'); }}
-          onImprimirEtiqueta={(l) => { setLoteActivo(l); setModalType('etiqueta'); }}
-        />
+        <>
+          <div className="mb-4 flex flex-wrap gap-3">
+            <input
+              type="text"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              placeholder="Buscar producto o número de lote..."
+              className="flex-1 min-w-[200px] px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
+            />
+            <select
+              value={filtroSucursal}
+              onChange={(e) => setFiltroSucursal(e.target.value)}
+              className="px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+              <option value="">Todas las sucursales</option>
+              {sucursales.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <select
+              value={filtroClasificacion}
+              onChange={(e) => setFiltroClasificacion(e.target.value)}
+              className="px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+              <option value="">Todas las categorías</option>
+              {clasificaciones.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <select
+              value={filtroMarca}
+              onChange={(e) => setFiltroMarca(e.target.value)}
+              className="px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+              <option value="">Todas las marcas</option>
+              {marcas.map((m) => <option key={m} value={m}>{m}</option>)}
+            </select>
+            <select
+              value={filtroEstado}
+              onChange={(e) => setFiltroEstado(e.target.value)}
+              className="px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+              <option value="">Todos los estados</option>
+              <option value="vigente">Vigente</option>
+              <option value="por_vencer">Por vencer (≤30 d)</option>
+              <option value="vencido">Vencido</option>
+              <option value="bajo">Stock bajo</option>
+            </select>
+            {hayFiltrosActivos && (
+              <button
+                onClick={limpiarFiltros}
+                className="px-3 py-2 text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-white"
+              >
+                Limpiar filtros
+              </button>
+            )}
+          </div>
+
+          <TablaLotes
+            lotes={lotesFiltrados}
+            cargando={cargandoLotes}
+            onVerMovimientos={(l) => setDetalleId(l.id_lote)}
+            onAjustar={(l) => { setLoteActivo(l); setModalType('ajuste'); }}
+            onNuevoTraslado={(l) => { setLoteActivo(l); setModalType('traslado'); }}
+            onDarBaja={(l) => { setLoteActivo(l); setModalType('baja'); }}
+            onImprimirEtiqueta={(l) => { setLoteActivo(l); setModalType('etiqueta'); }}
+          />
+        </>
       )}
 
       {tab === 'traslados' && (
-        <TablaTraslados
-          traslados={traslados}
-          cargando={cargandoTraslados}
-          onConfirmar={handleConfirmarTraslado}
-          onCancelar={handleCancelarTraslado}
-        />
+        <>
+          <div className="mb-4 flex flex-wrap gap-3">
+            <input
+              type="text"
+              value={busquedaTraslado}
+              onChange={(e) => setBusquedaTraslado(e.target.value)}
+              placeholder="Buscar producto o número de lote..."
+              className="flex-1 min-w-[200px] px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
+            />
+            <select
+              value={filtroSucOrigen}
+              onChange={(e) => setFiltroSucOrigen(e.target.value)}
+              className="px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+              <option value="">Todos los orígenes</option>
+              {sucursalesOrigen.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <select
+              value={filtroSucDestino}
+              onChange={(e) => setFiltroSucDestino(e.target.value)}
+              className="px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+              <option value="">Todos los destinos</option>
+              {sucursalesDestino.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <select
+              value={filtroEstadoTraslado}
+              onChange={(e) => setFiltroEstadoTraslado(e.target.value)}
+              className="px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+              <option value="">Todos los estados</option>
+              <option value="PENDIENTE">Pendiente</option>
+              <option value="CONFIRMADO">Confirmado</option>
+              <option value="CANCELADO">Cancelado</option>
+            </select>
+            {hayFiltrosTrasladoActivos && (
+              <button
+                onClick={limpiarFiltrosTraslado}
+                className="px-3 py-2 text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-white"
+              >
+                Limpiar filtros
+              </button>
+            )}
+          </div>
+
+          <TablaTraslados
+            traslados={trasladosFiltrados}
+            cargando={cargandoTraslados}
+            onConfirmar={handleConfirmarTraslado}
+            onCancelar={handleCancelarTraslado}
+          />
+        </>
       )}
 
       {tab === 'alertas' && (
