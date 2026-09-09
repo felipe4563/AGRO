@@ -28,8 +28,8 @@ const cambiarPassword = async (req, res) => {
   if (!contrasena_actual || !nueva_contrasena) {
     return res.status(400).json({ error: 'Contraseña actual y nueva contraseña son obligatorias' });
   }
-  if (String(nueva_contrasena).trim().length < 6) {
-    return res.status(400).json({ error: 'La nueva contraseña debe tener al menos 6 caracteres' });
+  if (String(nueva_contrasena).trim().length < 8) {
+    return res.status(400).json({ error: 'La nueva contraseña debe tener al menos 8 caracteres' });
   }
   try {
     const [rows] = await db.promise().query('SELECT contrasena FROM usuario WHERE id_usuario = ?', [req.user.id_usuario]);

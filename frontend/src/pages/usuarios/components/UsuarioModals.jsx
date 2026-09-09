@@ -264,11 +264,11 @@ export function ModalResetClave({ usuario, onConfirm, onClose, guardando }) {
               <input
                 type={mostrar ? 'text' : 'password'}
                 required
-                minLength={6}
+                minLength={8}
                 value={nueva}
                 onChange={(e) => setNueva(e.target.value)}
                 className="w-full px-3 py-2 pr-10 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 outline-none"
-                placeholder="Mínimo 6 caracteres"
+                placeholder="Mínimo 8 caracteres"
               />
               <button
                 type="button"

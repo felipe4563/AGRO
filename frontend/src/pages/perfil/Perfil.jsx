@@ -85,8 +85,8 @@ export default function Perfil() {
       mostrarToast('error', 'Completa la contraseña actual y la nueva');
       return;
     }
-    if (nuevaContrasena.length < 6) {
-      mostrarToast('error', 'La nueva contraseña debe tener al menos 6 caracteres');
+    if (nuevaContrasena.length < 8) {
+      mostrarToast('error', 'La nueva contraseña debe tener al menos 8 caracteres');
       return;
     }
     if (nuevaContrasena !== confirmarContrasena) {

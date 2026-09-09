@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const helmet  = require('helmet');
 const cors    = require('cors');
 const path    = require('path');
 const fs      = require('fs');
@@ -43,6 +44,14 @@ const corsOptions = {
   credentials: true,
 };
 
+// contentSecurityPolicy desactivado: esta API nunca sirve HTML, así que CSP no
+// aporta nada acá. crossOriginResourcePolicy en 'cross-origin' porque el
+// frontend (otro origen en dev, ej. localhost:5173 vs localhost:3000) necesita
+// poder cargar las imágenes de /uploads con <img src>.
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+}));
 app.use(cors(corsOptions));
 app.use(express.json());
 

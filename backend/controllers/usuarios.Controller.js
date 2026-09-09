@@ -61,8 +61,8 @@ const crearUsuario = async (req, res) => {
   if (!ciTxt || !nombreTxt || !apellidoTxt || !Number.isFinite(idRolNum) || idRolNum <= 0) {
     return res.status(400).json({ error: 'Campos obligatorios: ci, nombre, apellido, id_rol' });
   }
-  if (!contrasena) {
-    return res.status(400).json({ error: 'La contraseña es obligatoria' });
+  if (!contrasena || String(contrasena).trim().length < 8) {
+    return res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres' });
   }
 
   try {
@@ -193,6 +193,9 @@ const editarUsuario = async (req, res) => {
     if (activoNum !== undefined) { fields.push('activo = ?'); values.push(activoNum); }
 
     if (contrasena) {
+      if (String(contrasena).trim().length < 8) {
+        return res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres' });
+      }
       const hash = await bcrypt.hash(String(contrasena), 10);
       fields.push('contrasena = ?');
       values.push(hash);
@@ -295,8 +298,8 @@ const resetearContrasena = async (req, res) => {
   if (!Number.isFinite(idUsuarioNum) || idUsuarioNum <= 0) {
     return res.status(400).json({ error: 'ID inválido' });
   }
-  if (!nueva_contrasena || String(nueva_contrasena).trim().length < 6) {
-    return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
+  if (!nueva_contrasena || String(nueva_contrasena).trim().length < 8) {
+    return res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres' });
   }
 
   try {

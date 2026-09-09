@@ -41,7 +41,7 @@ const authMiddleware = async (req, res, next) => {
       console.error('[authMiddleware] JWT_SECRET no está configurado en el entorno');
       return res.status(500).json({ error: 'Error interno de autenticación' });
     }
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
     const { id_usuario, rol, id_sucursal, id_sector } = decoded; // ✅ Cambiado id_persona → id_usuario, agregado id_sector
 
     const claves  = await getPermisosDeRol(rol);

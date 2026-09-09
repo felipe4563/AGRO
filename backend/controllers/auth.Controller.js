@@ -67,7 +67,10 @@ const login = (req, res) => {
 
     if (results.length === 0) {
       registrarIntentoFallido(ip);
-      return res.status(401).json({ error: 'Usuario no encontrado o inactivo' });
+      // Mensaje genérico a propósito: si dijéramos "usuario no encontrado" vs
+      // "contraseña incorrecta" un atacante podría enumerar qué CI/correos
+      // existen en el sistema con solo intentar el login.
+      return res.status(401).json({ error: 'Credenciales incorrectas' });
     }
 
     const usuario = results[0];
@@ -78,7 +81,7 @@ const login = (req, res) => {
       const coincide = await bcrypt.compare(String(contrasena), hash);
       if (!coincide) {
         registrarIntentoFallido(ip);
-        return res.status(401).json({ error: 'Contraseña incorrecta' });
+        return res.status(401).json({ error: 'Credenciales incorrectas' });
       }
       limpiarIntentos(ip);
     } catch (bcryptErr) {
