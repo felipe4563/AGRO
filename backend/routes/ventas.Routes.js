@@ -16,4 +16,7 @@ router.post('/qr-banco/generar', checkPermission('crear', 'ventas'), ctrl.genera
 router.get('/qr-banco/estado/:qrId', checkPermission('crear', 'ventas'), ctrl.estadoQrBanco);
 router.delete('/qr-banco/:qrId', checkPermission('crear', 'ventas'), ctrl.anularQrBanco);
 
+router.post('/qr-codepay/generar', checkPermission('crear', 'ventas'), ctrl.generarQrCodepay);
+router.get('/qr-codepay/estado/:txId', checkPermission('crear', 'ventas'), ctrl.estadoQrCodepay);
+
 module.exports = router;

@@ -14,6 +14,7 @@ const API_BASE = import.meta.env.VITE_API_URL.replace('/api', '');
 const METODOS_PAGO = [
   { value: 'EFECTIVO', label: 'Efectivo' },
   { value: 'QR_BANCO', label: 'QR Banco' },
+  { value: 'QR_CODEPAY', label: 'QR CodePay' },
   { value: 'QR_MANUAL', label: 'QR Manual' },
   { value: 'TRANSFERENCIA', label: 'Transf.' },
   { value: 'CREDITO', label: 'Crédito' },
@@ -248,6 +249,12 @@ export default function NuevaVenta() {
   const [errorQrBanco, setErrorQrBanco] = useState('');
   const [generandoQrBanco, setGenerandoQrBanco] = useState(false);
   const pollingQrBancoRef = useRef(null);
+
+  const [modalQrCodepay, setModalQrCodepay] = useState(null); // { txId, qrCode } | null
+  const [verificandoQrCodepay, setVerificandoQrCodepay] = useState(false);
+  const [errorQrCodepay, setErrorQrCodepay] = useState('');
+  const [generandoQrCodepay, setGenerandoQrCodepay] = useState(false);
+  const pollingQrCodepayRef = useRef(null);
   const [montoPagado, setMontoPagado] = useState('');
   const [nroFactura, setNroFactura] = useState('');
   const [descuentoValor, setDescuentoValor] = useState('');
@@ -749,7 +756,7 @@ export default function NuevaVenta() {
         ? (parseFloat(montoPagado) || 0)
         : (parseFloat(montoPagado) || totales.total);
 
-      const metodoPagoReal = (metodoPago === 'QR_MANUAL' || metodoPago === 'QR_BANCO') ? 'QR' : metodoPago;
+      const metodoPagoReal = (metodoPago === 'QR_MANUAL' || metodoPago === 'QR_BANCO' || metodoPago === 'QR_CODEPAY') ? 'QR' : metodoPago;
 
       const payload = {
         id_cliente: idCliente || null,
@@ -787,6 +794,7 @@ export default function NuevaVenta() {
       setRecompensaAplicada(null);
       setQrManualConfirmado(false);
       setModalQrBanco(null);
+      setModalQrCodepay(null);
     } catch (err) {
       mostrarToast('error', err.response?.data?.error || 'Error al procesar la venta');
     } finally {
@@ -837,9 +845,50 @@ export default function NuevaVenta() {
     setErrorQrBanco('');
   };
 
+  const iniciarCobroQrCodepay = async () => {
+    if (carrito.length === 0) { mostrarToast('error', 'El carrito está vacío'); return; }
+    if (totales.total <= 0) { mostrarToast('error', 'El total debe ser mayor a 0'); return; }
+
+    setErrorQrCodepay('');
+    setGenerandoQrCodepay(true);
+    try {
+      const res = await ventaService.generarQrCodepay({ monto: totales.total });
+      setModalQrCodepay({ txId: res.data.tx_id, qrCode: res.data.qr_code });
+
+      pollingQrCodepayRef.current = setInterval(async () => {
+        try {
+          const estado = await ventaService.estadoQrCodepay(res.data.tx_id);
+          if (estado.data.pagado) {
+            clearInterval(pollingQrCodepayRef.current);
+            pollingQrCodepayRef.current = null;
+            setVerificandoQrCodepay(true);
+            await procesarVenta({ qr_tipo: 'CODEPAY', qr_referencia: res.data.tx_id });
+            setVerificandoQrCodepay(false);
+          }
+        } catch {
+          // fallo transitorio de un ciclo de polling: se reintenta en el siguiente
+        }
+      }, 4000);
+    } catch (err) {
+      setErrorQrCodepay(err.response?.data?.error || 'No se pudo generar el QR, intenta de nuevo o usa QR Manual');
+    } finally {
+      setGenerandoQrCodepay(false);
+    }
+  };
+
+  const cerrarModalQrCodepay = () => {
+    if (pollingQrCodepayRef.current) {
+      clearInterval(pollingQrCodepayRef.current);
+      pollingQrCodepayRef.current = null;
+    }
+    setModalQrCodepay(null);
+    setErrorQrCodepay('');
+  };
+
   useEffect(() => {
     return () => {
       if (pollingQrBancoRef.current) clearInterval(pollingQrBancoRef.current);
+      if (pollingQrCodepayRef.current) clearInterval(pollingQrCodepayRef.current);
     };
   }, []);
 
@@ -1436,21 +1485,23 @@ export default function NuevaVenta() {
             onClick={() => {
               if (metodoPago === 'QR_BANCO') {
                 iniciarCobroQrBanco();
+              } else if (metodoPago === 'QR_CODEPAY') {
+                iniciarCobroQrCodepay();
               } else if (metodoPago === 'QR_MANUAL') {
                 procesarVenta({ qr_tipo: 'MANUAL' });
               } else {
                 procesarVenta();
               }
             }}
-            disabled={guardando || generandoQrBanco || carrito.length === 0 || (metodoPago === 'QR_MANUAL' && !qrManualConfirmado)}
+            disabled={guardando || generandoQrBanco || generandoQrCodepay || carrito.length === 0 || (metodoPago === 'QR_MANUAL' && !qrManualConfirmado)}
             className="w-full py-4 rounded-xl text-white font-black text-lg bg-emerald-600 hover:bg-emerald-500 shadow-xl shadow-emerald-500/20 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
           >
-            {guardando || generandoQrBanco ? 'Procesando...' : (
+            {guardando || generandoQrBanco || generandoQrCodepay ? 'Procesando...' : (
               <>
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/>
                 </svg>
-                {metodoPago === 'QR_BANCO' ? 'GENERAR QR' : 'COBRAR'} Bs {totales.total.toFixed(2)}
+                {(metodoPago === 'QR_BANCO' || metodoPago === 'QR_CODEPAY') ? 'GENERAR QR' : 'COBRAR'} Bs {totales.total.toFixed(2)}
               </>
             )}
           </button>
@@ -1594,6 +1645,48 @@ export default function NuevaVenta() {
             <p className="text-sm text-zinc-700 dark:text-zinc-300 mb-4">{errorQrBanco}</p>
             <button
               onClick={() => setErrorQrBanco('')}
+              className="w-full py-2.5 rounded-xl bg-zinc-800 dark:bg-zinc-100 text-white dark:text-zinc-900 text-sm font-bold"
+            >
+              Entendido
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: cobro con QR CodePay (generación + verificación automática) */}
+      {modalQrCodepay && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-sm max-h-[90vh] overflow-y-auto bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-xl p-5 text-center">
+            <h3 className="font-bold text-zinc-900 dark:text-white mb-1">Cobro con QR CodePay</h3>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-4">
+              Bs {totales.total.toFixed(2)} — pide al cliente que escanee este código.
+            </p>
+            <img
+              src={modalQrCodepay.qrCode}
+              alt="Código QR de cobro"
+              className="w-56 h-56 mx-auto rounded-xl border border-zinc-200 dark:border-zinc-700"
+            />
+            <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 mt-4 animate-pulse">
+              {verificandoQrCodepay ? 'Pago detectado, registrando venta...' : 'Esperando pago...'}
+            </p>
+            <button
+              onClick={cerrarModalQrCodepay}
+              disabled={verificandoQrCodepay}
+              className="w-full mt-5 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Error al generar QR CodePay */}
+      {errorQrCodepay && !modalQrCodepay && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-sm bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-xl p-5 text-center">
+            <p className="text-sm text-zinc-700 dark:text-zinc-300 mb-4">{errorQrCodepay}</p>
+            <button
+              onClick={() => setErrorQrCodepay('')}
               className="w-full py-2.5 rounded-xl bg-zinc-800 dark:bg-zinc-100 text-white dark:text-zinc-900 text-sm font-bold"
             >
               Entendido

@@ -26,6 +26,7 @@ const promocionesRoutes = require('./routes/promociones.Routes');
 const fidelizacionRoutes = require('./routes/fidelizacion.Routes');
 const configuracionRoutes = require('./routes/configuracion.Routes');
 const perfilRoutes = require('./routes/perfil.Routes');
+const webhooksRoutes = require('./routes/webhooks.Routes');
 const app = express();
 
 // ── CORS ──────────────────────────────────────────────────────────────────
@@ -53,7 +54,9 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
 app.use(cors(corsOptions));
-app.use(express.json());
+// verify: guarda el body crudo en req.rawBody — el webhook de CodePay necesita
+// los bytes exactos (no el objeto re-serializado) para validar la firma HMAC.
+app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf; } }));
 
 // ── Archivos estáticos (imágenes de productos) ────────────────────────────
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -81,6 +84,7 @@ app.use('/api/promociones', promocionesRoutes);
 app.use('/api/fidelizacion', fidelizacionRoutes);
 app.use('/api/configuracion', configuracionRoutes);
 app.use('/api/perfil', perfilRoutes);
+app.use('/api/webhooks', webhooksRoutes);
 
 // ── Servidor ──────────────────────────────────────────────────────────────
 if (process.env.NODE_ENV !== 'test') {

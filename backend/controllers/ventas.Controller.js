@@ -864,6 +864,75 @@ const anularQrBanco = async (req, res) => {
   return res.json({ mensaje: 'QR anulado' });
 };
 
+const codepay = require('../services/codepay.service');
+
+const generarQrCodepay = async (req, res) => {
+  const { monto } = req.body ?? {};
+  const montoNum = parseFloat(monto);
+  if (!montoNum || montoNum <= 0) {
+    return res.status(400).json({ error: 'El monto debe ser mayor a 0' });
+  }
+  try {
+    const orderId = `venta_${Date.now()}`;
+    const resultado = await codepay.generarQR({
+      orderId,
+      amount: montoNum,
+      descripcion: 'Venta POS',
+    });
+
+    await db.promise().query(
+      'INSERT INTO codepay_transaccion (tx_id, order_id, monto, estado) VALUES (?, ?, ?, ?)',
+      [resultado.tx_id, orderId, montoNum, 'PENDING']
+    );
+
+    return res.json(resultado);
+  } catch (err) {
+    console.error('[ventas.generarQrCodepay]', err);
+    return res.status(500).json({ error: mensajeSeguro(err, 'No se pudo generar el QR con CodePay') });
+  }
+};
+
+// El webhook de CodePay es la confirmación primaria (actualiza codepay_transaccion
+// directo); si todavía no llegó cuando el frontend consulta, se cae a preguntarle
+// a CodePay el estado directamente como respaldo (mismo criterio del QR Banco).
+const estadoQrCodepay = async (req, res) => {
+  const { txId } = req.params;
+  try {
+    const [rows] = await db.promise().query(
+      'SELECT estado FROM codepay_transaccion WHERE tx_id = ?',
+      [txId]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Transacción no encontrada' });
+
+    if (rows[0].estado === 'PENDING') {
+      try {
+        const status = await codepay.consultarEstado(txId);
+        if (status === 'completed') {
+          await db.promise().query(
+            "UPDATE codepay_transaccion SET estado = 'COMPLETED' WHERE tx_id = ? AND estado = 'PENDING'",
+            [txId]
+          );
+          return res.json({ pagado: true });
+        }
+        if (status === 'failed') {
+          await db.promise().query(
+            "UPDATE codepay_transaccion SET estado = 'FAILED' WHERE tx_id = ? AND estado = 'PENDING'",
+            [txId]
+          );
+        }
+      } catch (errConsulta) {
+        console.error('[ventas.estadoQrCodepay] respaldo por polling falló', errConsulta.message);
+      }
+      return res.json({ pagado: false });
+    }
+
+    return res.json({ pagado: rows[0].estado === 'COMPLETED' });
+  } catch (err) {
+    console.error('[ventas.estadoQrCodepay]', err);
+    return res.status(500).json({ error: mensajeSeguro(err, 'No se pudo consultar el estado del pago') });
+  }
+};
+
 module.exports = {
   listar,
   obtener,
@@ -872,6 +941,8 @@ module.exports = {
   generarQrBanco,
   estadoQrBanco,
   anularQrBanco,
+  generarQrCodepay,
+  estadoQrCodepay,
   listarProductosPOS,
   listarLotesProductoPOS,
 };

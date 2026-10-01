@@ -10,6 +10,9 @@ const ventaService = {
   generarQrBanco: (data) => api.post('/ventas/qr-banco/generar', data),
   estadoQrBanco:  (qrId) => api.get(`/ventas/qr-banco/estado/${qrId}`),
   anularQrBanco:  (qrId) => api.delete(`/ventas/qr-banco/${qrId}`),
+
+  generarQrCodepay: (data) => api.post('/ventas/qr-codepay/generar', data),
+  estadoQrCodepay:  (txId) => api.get(`/ventas/qr-codepay/estado/${txId}`),
 };
 
 export default ventaService;

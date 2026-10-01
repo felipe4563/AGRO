@@ -21,6 +21,7 @@ para no perder la cuenta.
 | 007 | `007_retirar_permisos_no_usados.sql` | Retira permisos ver_detalle sin uso (usuarios/proveedores/compras/clientes) | |
 | 008 | `008_codigo_barras_por_lote.sql` | Código de barras propio por lote (trazabilidad exacta al vender) | |
 | 009 | `009_cerrar_todas_caja.sql` | Permiso `caja.cerrar_todas`: solo Admin puede cerrar el turno de otro cajero | |
+| 010 | `010_codepay.sql` | QR CodePay: tercer tipo de QR de venta + tabla de estado de transacciones | |
 
 `produccion.sql` siempre refleja el esquema final con todas las migraciones ya
 incorporadas — sirve para instalar el sistema desde cero, no para actualizar una
