@@ -46,9 +46,9 @@ nada localmente:
 ./deploy.sh
 ```
 
-Si el repo es público, las imágenes quedan **privadas** en ghcr.io igual
-(GitHub no las publica automáticamente): hacé login una vez con un token de
-solo lectura (`read:packages`) antes del primer `./deploy.sh`:
+Las imágenes quedan **privadas** en ghcr.io por defecto (sea el repo público
+o privado) — hacé login una vez en el VPS con un token de solo lectura
+(`read:packages`) antes del primer `./deploy.sh`:
 
 ```bash
 echo <token> | docker login ghcr.io -u felipe4563 --password-stdin
