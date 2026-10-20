@@ -37,11 +37,28 @@ viene con `samagro.rusoft.dev`.
 
 ## 3. Levantar el stack
 
+Las imágenes de `backend` y `frontend` las construye GitHub Actions en cada
+push a `main` y las publica en `ghcr.io/felipe4563/agrov1-*` (ver
+`.github/workflows/imagenes.yml`) — el VPS solo las descarga, nunca construye
+nada localmente:
+
 ```bash
-docker compose build
-docker compose up -d
-docker compose logs -f backend   # verificar que conecta a MySQL sin errores
+./deploy.sh
 ```
+
+Si el repo es público, las imágenes quedan **privadas** en ghcr.io igual
+(GitHub no las publica automáticamente): hacé login una vez con un token de
+solo lectura (`read:packages`) antes del primer `./deploy.sh`:
+
+```bash
+echo <token> | docker login ghcr.io -u felipe4563 --password-stdin
+```
+
+`docker compose logs -f backend` para verificar que conecta a MySQL sin
+errores. Si por algún motivo necesitás construir las imágenes a mano en el
+VPS en vez de descargarlas (ej. probando un cambio sin pushear), seguís
+pudiendo hacer `docker compose build && docker compose up -d` — el
+`build:` de cada servicio sigue en `docker-compose.yml` como respaldo.
 
 La primera vez que se crea el volumen de MySQL, se importa automáticamente
 `bd/produccion.sql` (estructura completa + los 3 roles — Administrador,
@@ -80,10 +97,13 @@ de la sucursal de ejemplo y, desde Configuración, el nombre/logo del negocio.
 ## 6. Actualizar a una nueva versión
 
 ```bash
-git pull   # o copiar los archivos nuevos al VPS
-docker compose build
-docker compose up -d
+./deploy.sh
 ```
+
+Hace `git pull --ff-only`, espera (reintentando) a que GitHub Actions
+termine de publicar la imagen del commit actual, y recién ahí
+`docker compose up -d`. Si las imágenes no aparecen en 15 minutos, aborta sin
+tocar nada — producción sigue con la versión anterior.
 
 Los datos (MySQL, imágenes subidas, backups) viven en volúmenes con nombre
 (`mysql_data`, `backend_uploads`, `backend_backups`) y sobreviven a

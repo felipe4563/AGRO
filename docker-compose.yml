@@ -19,6 +19,7 @@ services:
       retries: 10
 
   backend:
+    image: ghcr.io/felipe4563/agrov1-backend:${TAG:-latest}
     build: ./backend
     restart: unless-stopped
     environment:
@@ -48,6 +49,7 @@ services:
       - backend_backups:/app/backups
 
   frontend:
+    image: ghcr.io/felipe4563/agrov1-frontend:${TAG:-latest}
     build:
       context: ./frontend
       args:
