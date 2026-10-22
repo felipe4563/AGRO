@@ -4,7 +4,7 @@ const compraService = {
   listar:    () => api.get('/compras'),
   obtener:   (id) => api.get(`/compras/${id}`),
   crear:     (data) => api.post('/compras', data),
-  confirmar: (id) => api.post(`/compras/${id}/confirmar`),
+  confirmar: (id, detalles) => api.post(`/compras/${id}/confirmar`, { detalles }),
   anular:    (id) => api.patch(`/compras/${id}/anular`),
   listarSucursalesDestino: () => api.get('/compras/sucursales-destino')
 };

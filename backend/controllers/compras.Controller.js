@@ -158,6 +158,14 @@ const crear = async (req, res) => {
 const confirmar = async (req, res) => {
   const { id } = req.params;
   const id_usuario = req.user.id_usuario;
+  // Datos de lote (número, fecha de producción, vencimiento) tal cual se ven
+  // recién al recibir el producto físicamente — se cargan acá, en el momento
+  // de confirmar, no antes. Todos opcionales, igual que al crear la compra.
+  const overridesPorDetalle = new Map(
+    (Array.isArray(req.body?.detalles) ? req.body.detalles : [])
+      .filter((d) => d && d.id_detalle_compra)
+      .map((d) => [Number(d.id_detalle_compra), d])
+  );
 
   const connection = await db.promise().getConnection();
 
@@ -177,14 +185,26 @@ const confirmar = async (req, res) => {
     // 3. Procesar cada detalle
     for (const det of detalles) {
       const stock_unidades = det.cantidad_cajas * det.unidades_por_caja;
-      
+
+      const override = overridesPorDetalle.get(det.id_detalle_compra);
+      const numero_lote_fab = override?.numero_lote_fab || det.numero_lote_fab;
+      const fecha_produccion = override?.fecha_produccion || det.fecha_produccion;
+      const fecha_vencimiento = override?.fecha_vencimiento || det.fecha_vencimiento;
+
+      if (override) {
+        await connection.query(
+          'UPDATE detalle_compra SET numero_lote_fab = ?, fecha_produccion = ?, fecha_vencimiento = ? WHERE id_detalle_compra = ?',
+          [numero_lote_fab || null, fecha_produccion || null, fecha_vencimiento || null, det.id_detalle_compra]
+        );
+      }
+
       // a. Crear el Lote
       const [loteResult] = await connection.query(
-        `INSERT INTO lote 
+        `INSERT INTO lote
           (id_producto, id_sucursal, numero_lote, fecha_produccion, fecha_vencimiento, fecha_ingreso_almacen, cantidad_cajas, unidades_por_caja, precio_por_caja, stock_cajas, stock_unidades)
          VALUES (?, ?, ?, ?, ?, CURDATE(), ?, ?, ?, ?, ?)`,
         [
-          det.id_producto, id_sucursal, det.numero_lote_fab, det.fecha_produccion, det.fecha_vencimiento,
+          det.id_producto, id_sucursal, numero_lote_fab || null, fecha_produccion || null, fecha_vencimiento || null,
           det.cantidad_cajas, det.unidades_por_caja, det.precio_por_caja, det.cantidad_cajas, stock_unidades
         ]
       );

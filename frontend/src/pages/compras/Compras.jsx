@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import PageWrapper from '../../components/PageWrapper';
 import TablaCompras from './components/TablaCompras';
 import DetalleCompraModal from './components/DetalleCompraModal';
+import ModalConfirmarRecepcion from './components/ModalConfirmarRecepcion';
 import ModalImprimirEtiquetas from '../../components/ModalImprimirEtiquetas';
 import compraService from '../../services/compra.service';
 import { usePermission } from '../../hooks/usePermission';
@@ -29,6 +30,7 @@ export default function Compras() {
   const [toast, setToast] = useState(null);
 
   const [detalleId, setDetalleId] = useState(null);
+  const [confirmarId, setConfirmarId] = useState(null);
   const [lotesParaEtiquetas, setLotesParaEtiquetas] = useState(null);
 
   const mostrarToast = (tipo, msg) => {
@@ -56,25 +58,21 @@ export default function Compras() {
     setDetalleId(compra.id_compra);
   };
 
-  const handleConfirmar = async (compra) => {
-    if (!window.confirm('¿Estás seguro de confirmar la recepción? Esta acción ingresará el stock al Almacén y no se puede deshacer de forma sencilla.')) {
-      return;
-    }
-    
-    try {
-      const res = await compraService.confirmar(compra.id_compra);
-      mostrarToast('ok', 'Compra confirmada. Lotes ingresados al Almacén.');
-      await cargarDatos();
-      if (res.data.lotes && res.data.lotes.length > 0) {
-        setLotesParaEtiquetas(res.data.lotes.map((l) => ({
-          id_lote: l.id_lote,
-          nombre: l.producto_nombre,
-          codigo_barras: l.codigo_barras,
-          cantidad: l.cantidad_cajas || 1,
-        })));
-      }
-    } catch (err) {
-      mostrarToast('error', err.response?.data?.error || 'Error al confirmar la compra');
+  const handleConfirmar = (compra) => {
+    setConfirmarId(compra.id_compra);
+  };
+
+  const handleConfirmado = async (data) => {
+    setConfirmarId(null);
+    mostrarToast('ok', 'Compra confirmada. Lotes ingresados al Almacén.');
+    await cargarDatos();
+    if (data.lotes && data.lotes.length > 0) {
+      setLotesParaEtiquetas(data.lotes.map((l) => ({
+        id_lote: l.id_lote,
+        nombre: l.producto_nombre,
+        codigo_barras: l.codigo_barras,
+        cantidad: l.cantidad_cajas || 1,
+      })));
     }
   };
 
@@ -128,6 +126,14 @@ export default function Compras() {
         <DetalleCompraModal
           compraId={detalleId}
           onClose={() => setDetalleId(null)}
+        />
+      )}
+
+      {confirmarId && (
+        <ModalConfirmarRecepcion
+          compraId={confirmarId}
+          onClose={() => setConfirmarId(null)}
+          onConfirmado={handleConfirmado}
         />
       )}
 
