@@ -22,6 +22,7 @@ para no perder la cuenta.
 | 008 | `008_codigo_barras_por_lote.sql` | Código de barras propio por lote (trazabilidad exacta al vender) | |
 | 009 | `009_cerrar_todas_caja.sql` | Permiso `caja.cerrar_todas`: solo Admin puede cerrar el turno de otro cajero | |
 | 010 | `010_codepay.sql` | QR CodePay: tercer tipo de QR de venta + tabla de estado de transacciones | |
+| 011 | `011_estado_compra_anulada.sql` | Corrige `compra.estado`: agrega `'ANULADA'` al enum (faltaba, causaba estado vacío al anular) y arregla el DEFAULT | |
 
 `produccion.sql` siempre refleja el esquema final con todas las migraciones ya
 incorporadas — sirve para instalar el sistema desde cero, no para actualizar una
