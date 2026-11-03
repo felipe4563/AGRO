@@ -3,7 +3,19 @@
 # imágenes ya construidas por CI (GitHub Actions + ghcr.io) — este script NO
 # construye nada localmente, así que no compite por RAM/CPU con otros
 # sistemas del mismo VPS compartido.
-# Uso: ./deploy.sh   (ejecutar dentro de la carpeta del proyecto en el VPS)
+#
+# Dos modos, detectados automáticamente:
+#   - Modo viejo (una carpeta = un clon = un cliente, ej. samagro/inv/
+#     agrofertil): si no existe instancias/, usa el .env de la raíz, igual
+#     que siempre.
+#   - Modo multi-instancia (ver deploy/nueva-instancia.sh): si existe
+#     instancias/*.env, cada archivo es un cliente propio, con su proyecto
+#     Docker Compose (-p agrov1-<nombre>).
+#
+# Uso:
+#   ./deploy.sh              # modo viejo: la única instancia de esta carpeta
+#                             # modo multi-instancia: TODAS las de instancias/
+#   ./deploy.sh <nombre>     # modo multi-instancia: solo esa instancia
 
 set -euo pipefail
 
@@ -24,14 +36,28 @@ main() {
   echo "==> git pull --ff-only..."
   git pull --ff-only
 
-  if [ ! -f .env ]; then
-    echo "ERROR: no existe .env (copia .env.example y complétalo antes del primer deploy)."
-    exit 1
-  fi
-
   if [ ! -f bd/produccion.sql ]; then
     echo "ERROR: falta bd/produccion.sql (no viaja por git, hay que copiarlo con scp)."
     exit 1
+  fi
+
+  # Decide el modo y valida ANTES de esperar imágenes (hasta 15 min) — si
+  # falta algo, falla al instante, igual que siempre.
+  local modo_multi=0 filtro=""
+  if ls instancias/*.env >/dev/null 2>&1; then
+    modo_multi=1
+    echo "==> Modo multi-instancia detectado (instancias/*.env)."
+    filtro="${1:-}"
+    if [ -n "$filtro" ] && [ ! -f "instancias/${filtro}.env" ]; then
+      echo "ERROR: no existe instancias/${filtro}.env"
+      exit 1
+    fi
+  else
+    echo "==> Modo viejo (una instancia, .env en la raíz)."
+    if [ ! -f .env ]; then
+      echo "ERROR: no existe .env (copia .env.example y complétalo antes del primer deploy)."
+      exit 1
+    fi
   fi
 
   export TAG="$(git rev-parse HEAD)"
@@ -39,24 +65,64 @@ main() {
 
   esperar_imagenes
 
-  echo "==> docker compose up -d --no-build --remove-orphans..."
-  docker compose up -d --no-build --remove-orphans
-
-  echo "==> Esperando que el backend levante..."
-  sleep 5
-  docker compose ps
-
-  echo "==> Últimas líneas de logs del backend:"
-  docker compose logs --tail=30 backend
+  local fallo_global=0
+  if [ "$modo_multi" -eq 1 ]; then
+    if [ -n "$filtro" ]; then
+      desplegar_instancia "$filtro" "instancias/${filtro}.env" || fallo_global=1
+    else
+      for env_file in instancias/*.env; do
+        local nombre
+        nombre="$(basename "$env_file" .env)"
+        desplegar_instancia "$nombre" "$env_file" || fallo_global=1
+      done
+    fi
+  else
+    desplegar_instancia "$(basename "$PWD")" ".env" || fallo_global=1
+  fi
 
   limpiar_imagenes_viejas
 
+  if [ "$fallo_global" -ne 0 ]; then
+    echo "==> Deploy terminado CON ERRORES en al menos una instancia (ver arriba)."
+    exit 1
+  fi
   echo "==> Deploy completado (commit ${TAG})."
 }
 
+# Levanta UNA instancia con su propio proyecto Docker Compose y su propio
+# .env. En modo viejo se llama una sola vez, sin -p/--env-file (mismo
+# comportamiento que siempre: compose usa .env de la raíz y el nombre de
+# proyecto por defecto, el de la carpeta).
+desplegar_instancia() {
+  local nombre="$1" env_file="$2"
+  echo "----- Instancia: ${nombre} (${env_file}) -----"
+
+  local compose_args=(up -d --no-build --remove-orphans)
+  local ps_args=(ps)
+  local logs_args=(logs --tail=30 backend)
+  if [ "$env_file" != ".env" ]; then
+    compose_args=(-p "agrov1-${nombre}" --env-file "$env_file" "${compose_args[@]}")
+    ps_args=(-p "agrov1-${nombre}" --env-file "$env_file" "${ps_args[@]}")
+    logs_args=(-p "agrov1-${nombre}" --env-file "$env_file" "${logs_args[@]}")
+  fi
+
+  if ! docker compose "${compose_args[@]}"; then
+    echo "ERROR: falló 'docker compose up' para la instancia ${nombre}."
+    return 1
+  fi
+
+  echo "==> Esperando que el backend levante..."
+  sleep 5
+  docker compose "${ps_args[@]}"
+
+  echo "==> Últimas líneas de logs del backend:"
+  docker compose "${logs_args[@]}"
+}
+
 # Reintenta "docker compose pull" hasta que GitHub Actions termine de publicar
-# las imágenes de este commit, o hasta agotar el tiempo de espera. Si el
-# push a GitHub acaba de pasar, el workflow puede tardar unos minutos.
+# las imágenes de este commit, o hasta agotar el tiempo de espera. Las
+# imágenes son las mismas para todas las instancias, así que esto corre una
+# sola vez por deploy, no por instancia.
 esperar_imagenes() {
   local transcurrido=0
   while true; do
