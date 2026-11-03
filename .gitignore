@@ -8,3 +8,5 @@ frontend/dist/
 *.log
 *.sql
 deploy/NUEVO-CLIENTE.md
+deploy/NUEVA-INSTANCIA.md
+instancias/
