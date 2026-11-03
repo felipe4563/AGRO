@@ -27,3 +27,10 @@ para no perder la cuenta.
 `produccion.sql` siempre refleja el esquema final con todas las migraciones ya
 incorporadas — sirve para instalar el sistema desde cero, no para actualizar una
 base de datos existente.
+
+**`produccion.sql` ya NO se edita a mano.** Se regenera con
+`./deploy/generar-produccion.sh` (requiere Docker): aplica sobre
+`bd/000_base.sql` (que ya incluye hasta la migración 011) todas las
+migraciones nuevas con número mayor, y vuelca el resultado con
+`mysqldump`. Después de crear una migración nueva, correr ese script en
+vez de tocar `produccion.sql` directamente.
