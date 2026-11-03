@@ -10,7 +10,9 @@
 #     que siempre.
 #   - Modo multi-instancia (ver deploy/nueva-instancia.sh): si existe
 #     instancias/*.env, cada archivo es un cliente propio, con su proyecto
-#     Docker Compose (-p agrov1-<nombre>).
+#     Docker Compose (-p <nombre>) — mismo nombre de proyecto que ya usan
+#     las instancias existentes (ej. "samagro"), así sus volúmenes de datos
+#     reales no se duplican ni quedan huérfanos al pasar a este modelo.
 #
 # Uso:
 #   ./deploy.sh              # modo viejo: la única instancia de esta carpeta
@@ -101,9 +103,9 @@ desplegar_instancia() {
   local ps_args=(ps)
   local logs_args=(logs --tail=30 backend)
   if [ "$env_file" != ".env" ]; then
-    compose_args=(-p "agrov1-${nombre}" --env-file "$env_file" "${compose_args[@]}")
-    ps_args=(-p "agrov1-${nombre}" --env-file "$env_file" "${ps_args[@]}")
-    logs_args=(-p "agrov1-${nombre}" --env-file "$env_file" "${logs_args[@]}")
+    compose_args=(-p "${nombre}" --env-file "$env_file" "${compose_args[@]}")
+    ps_args=(-p "${nombre}" --env-file "$env_file" "${ps_args[@]}")
+    logs_args=(-p "${nombre}" --env-file "$env_file" "${logs_args[@]}")
   fi
 
   if ! docker compose "${compose_args[@]}"; then

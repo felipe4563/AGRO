@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Alta de una agropecuaria nueva bajo el modelo "instancias/*.env": un solo
 # clon del repo sirve a todos los clientes, cada uno es un archivo
-# instancias/<nombre>.env y un proyecto Docker Compose propio (-p
-# agrov1-<nombre>). No clona el repo otra vez — se corre dentro del clon
-# único que ya comparten todas las instancias de este modelo.
+# instancias/<nombre>.env y un proyecto Docker Compose propio (-p <nombre>).
+# No clona el repo otra vez — se corre dentro del clon único que ya
+# comparten todas las instancias de este modelo.
 #
 # No reemplaza a deploy/nuevo-cliente.sh: ese script sigue sirviendo al
 # modelo viejo (una carpeta = un clon = un cliente), que todavía usan
