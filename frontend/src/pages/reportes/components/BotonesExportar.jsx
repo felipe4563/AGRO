@@ -49,32 +49,41 @@ export default function BotonesExportar({ datos, columnas, titulo, orientacion =
     try {
       const doc = new jsPDF(orientacion, 'mm', 'a4');
 
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const ACCENT = [16, 185, 129]; // mismo verde del header de tabla, para que todo el documento se lea como un solo sistema de diseño
+
       const encabezadoY = await dibujarEncabezadoEmpresa(doc, configuracion, { startY: 16 });
       let y = encabezadoY;
 
-      doc.setFontSize(14);
+      doc.setFontSize(15);
       doc.setFont(undefined, 'bold');
+      doc.setTextColor(20);
       doc.text(titulo.replace(/_/g, ' '), 14, y);
+      // Filete de color bajo el título — separa visualmente "qué es este documento"
+      // del resto, en vez de una sola línea gris que mezclaba header y título.
+      doc.setDrawColor(...ACCENT);
+      doc.setLineWidth(0.8);
+      doc.line(14, y + 2, 14 + doc.getTextWidth(titulo.replace(/_/g, ' ')), y + 2);
+      y += 8;
+
+      // Metadatos en una sola línea compacta (antes eran 2-3 líneas sueltas) —
+      // se lee como el pie de un documento formal, no como texto de depuración.
+      doc.setFont(undefined, 'normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(110);
+      const partesMeta = [`Generado el ${new Date().toLocaleString()}`];
+      if (usuario) {
+        partesMeta.push(`por ${usuario.nombre} ${usuario.apellido || ''}${usuario.sucursal_nombre ? ` (${usuario.sucursal_nombre})` : ''}`.trim());
+      }
+      doc.text(partesMeta.join('  ·  '), 14, y);
       y += 5;
 
-      doc.setFont(undefined, 'normal');
-      doc.setFontSize(9);
-      doc.setTextColor(100);
-      doc.text(`Generado el: ${new Date().toLocaleString()}`, 14, y);
-      y += 4;
-      
-      if (usuario) {
-        doc.text(`Generado por: ${usuario.nombre} ${usuario.apellido || ''} ${usuario.sucursal_nombre ? `(${usuario.sucursal_nombre})` : ''}`, 14, y);
-        y += 5;
-      } else {
-        y += 1;
-      }
-
       if (subtitulo) {
-        const splitSub = doc.splitTextToSize(subtitulo, doc.internal.pageSize.width - 28);
+        const splitSub = doc.splitTextToSize(subtitulo, pageWidth - 28);
         doc.text(splitSub, 14, y);
         y += (splitSub.length * 4) + 2;
       }
+      y += 2;
       doc.setTextColor(0);
 
       const columnStyles = {};
@@ -103,56 +112,95 @@ export default function BotonesExportar({ datos, columnas, titulo, orientacion =
         head: head,
         body: body,
         startY: y,
-        styles: { fontSize: 8, cellPadding: 2 },
-        headStyles: { fillColor: [16, 185, 129], textColor: [255, 255, 255], fontStyle: 'bold' },
-        alternateRowStyles: { fillColor: [249, 250, 251] }, // Estilo cebra ligero
+        theme: 'grid',
+        styles: { fontSize: 8, cellPadding: 2.2, lineColor: [225, 227, 230], lineWidth: 0.1 },
+        headStyles: { fillColor: ACCENT, textColor: [255, 255, 255], fontStyle: 'bold', lineColor: ACCENT },
+        alternateRowStyles: { fillColor: [249, 250, 251] },
         columnStyles: columnStyles,
       });
 
       y = doc.lastAutoTable.finalY + 10;
 
-      // Renderizar resumen si existe
+      // Renderizar resumen si existe — como tarjetas (igual que los contadores
+      // de la pantalla de reportes), no como una lista de "etiqueta: valor"
+      // suelta, que se veía como una nota de depuración.
       if (resumen && Object.keys(resumen).length > 0) {
-        if (y > doc.internal.pageSize.height - 40) {
+        const labels = {
+          total_registros: 'Total Registros',
+          suma_total: 'Valor Total (Bs)',
+          unidades_total: 'Total Unidades',
+          total_ingresos: 'Ingresos Totales (Bs)',
+          costo_total: 'Costo Total (Bs)',
+          ganancia_total: 'Ganancia Bruta (Bs)',
+          valor_total: 'Valor Total Estimado (Bs)',
+          total_global: 'Total Global (Bs)',
+          total_diferencia: 'Diferencia Total (Bs)',
+          arqueos_con_diferencia: 'Arqueos c/Diferencia',
+          lotes_en_perdida: 'Lotes Vendiendo a Pérdida'
+        };
+        // Claves cuyo valor es una señal negativa cuando es > 0 (p. ej. "lotes en
+        // pérdida"): se resaltan en rojo en vez del verde neutro del resto.
+        const CLAVES_ALERTA = ['lotes_en_perdida', 'arqueos_con_diferencia', 'total_diferencia'];
+
+        const entradas = Object.entries(resumen);
+        const ANCHO_TARJETA = 42;
+        const ALTO_TARJETA = 18;
+        const GAP = 4;
+        const porFila = Math.max(1, Math.floor((pageWidth - 28 + GAP) / (ANCHO_TARJETA + GAP)));
+        const altoBloque = Math.ceil(entradas.length / porFila) * (ALTO_TARJETA + GAP);
+
+        if (y + altoBloque > doc.internal.pageSize.height - 20) {
           doc.addPage();
           y = 20;
         }
 
-        doc.setFontSize(11);
+        doc.setFontSize(10);
         doc.setFont(undefined, 'bold');
         doc.setTextColor(30);
-        doc.text('RESUMEN DEL REPORTE', 14, y);
-        y += 6;
+        doc.text('Resumen', 14, y);
+        y += 5;
 
-        doc.setFontSize(9);
-        const labels = {
-          total_registros: 'Total Registros:',
-          suma_total: 'Valor Total (Bs):',
-          unidades_total: 'Total Unidades:',
-          total_ingresos: 'Ingresos Totales (Bs):',
-          costo_total: 'Costo Total (Bs):',
-          ganancia_total: 'Ganancia Bruta (Bs):',
-          valor_total: 'Valor Total Estimado (Bs):',
-          total_global: 'Total Global (Bs):',
-          total_diferencia: 'Diferencia Total (Bs):',
-          arqueos_con_diferencia: 'Arqueos c/Diferencia:'
-        };
+        entradas.forEach(([key, val], i) => {
+          const col = i % porFila;
+          const fila = Math.floor(i / porFila);
+          const x = 14 + col * (ANCHO_TARJETA + GAP);
+          const yTarjeta = y + fila * (ALTO_TARJETA + GAP);
 
-        const startX = 14;
-        Object.entries(resumen).forEach(([key, val]) => {
-          let label = labels[key] || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) + ':';
           let displayVal = val;
           if (typeof val === 'number') {
-             displayVal = Number.isInteger(val) ? val.toString() : val.toLocaleString('en-US', {minimumFractionDigits: 2});
+            displayVal = Number.isInteger(val) ? val.toString() : val.toLocaleString('en-US', { minimumFractionDigits: 2 });
           }
-          
-          doc.setFont(undefined, 'bold');
-          doc.text(label, startX, y);
+          const esAlerta = CLAVES_ALERTA.includes(key) && parseFloat(val) > 0;
+
+          doc.setDrawColor(225, 227, 230);
+          doc.setLineWidth(0.2);
+          doc.setFillColor(250, 250, 251);
+          doc.roundedRect(x, yTarjeta, ANCHO_TARJETA, ALTO_TARJETA, 1.5, 1.5, 'FD');
+
           doc.setFont(undefined, 'normal');
-          doc.text(String(displayVal), startX + doc.getTextWidth(label) + 2, y);
-          
-          y += 5;
+          doc.setFontSize(7);
+          doc.setTextColor(120);
+          const label = labels[key] || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+          doc.text(doc.splitTextToSize(label, ANCHO_TARJETA - 4), x + 2, yTarjeta + 5);
+
+          doc.setFont(undefined, 'bold');
+          doc.setFontSize(12);
+          doc.setTextColor(...(esAlerta ? [220, 38, 38] : [17, 24, 39]));
+          doc.text(String(displayVal), x + 2, yTarjeta + 14);
         });
+
+        y += altoBloque;
+      }
+
+      // Pie de página con numeración — en todas las páginas, al final para
+      // saber el total de páginas antes de escribir "Página X de Y".
+      const totalPaginas = doc.internal.getNumberOfPages();
+      for (let p = 1; p <= totalPaginas; p++) {
+        doc.setPage(p);
+        doc.setFont(undefined, 'normal');
+        doc.setFontSize(7.5);
+        doc.setTextColor(150);
+        doc.text(`Página ${p} de ${totalPaginas}`, pageWidth - 14, doc.internal.pageSize.height - 8, { align: 'right' });
       }
 
       doc.save(`${titulo}_${new Date().toISOString().split('T')[0]}.pdf`);
