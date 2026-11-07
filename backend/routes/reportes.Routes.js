@@ -47,7 +47,8 @@ router.get('/inventario/:tipo', requireDynamicPermission({
   'valorizado': 'inventario_valorizado',
   'stock_bajo': 'stock_bajo',
   'vencimientos': 'vencimientos',
-  'kardex': 'kardex'
+  'kardex': 'kardex',
+  'rentabilidad': 'rentabilidad'
 }), ctrl.obtenerReporteInventario);
 
 // ==========================================

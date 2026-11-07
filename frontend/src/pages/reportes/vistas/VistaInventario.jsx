@@ -12,6 +12,7 @@ export default function VistaInventario() {
     { id: 'actual', label: 'Inventario Actual', permiso: 'inventario' },
     { id: 'global', label: 'Por Sucursal', permiso: 'inventario' },
     { id: 'valorizado', label: 'Inventario Valorizado', permiso: 'inventario_valorizado' },
+    { id: 'rentabilidad', label: 'Rentabilidad', permiso: 'rentabilidad' },
     { id: 'stock_bajo', label: 'Stock Bajo', permiso: 'stock_bajo' },
     { id: 'vencimientos', label: 'Próximos a Vencer', permiso: 'vencimientos' },
     { id: 'kardex', label: 'Kardex de Lotes', permiso: 'kardex' }
@@ -25,6 +26,10 @@ export default function VistaInventario() {
   const [cargando, setCargando] = useState(false);
   const [filtros, setFiltros] = useState({});
   const [catalogos, setCatalogos] = useState({ productos: [] });
+  // Precio hipotético que el usuario escribe por fila en la calculadora de
+  // rentabilidad (tab 'rentabilidad') — nunca se guarda, solo recalcula el
+  // margen en pantalla mientras se escribe. Clave: id_lote.
+  const [preciosSimulados, setPreciosSimulados] = useState({});
 
   useEffect(() => {
     reporteService.catalogos.productos().then(res => setCatalogos(prev => ({ ...prev, productos: res.data }))).catch(() => {});
@@ -66,22 +71,49 @@ export default function VistaInventario() {
     }
   };
 
+  const esMultiSucursal = activeTab === 'global' || activeTab === 'valorizado';
+  // Tabs donde tiene sentido filtrar por marca/categoría además de producto
+  // (multi-sucursal, o 'rentabilidad' que lista por lote de la sucursal actual).
+  const tieneFiltrosDeCatalogo = esMultiSucursal || activeTab === 'rentabilidad';
+
   const opcionesFiltros = {
     fechas: false,
-    productos: activeTab === 'kardex' || activeTab === 'global',
-    marcas: activeTab === 'global',
-    categorias: activeTab === 'global'
+    productos: activeTab === 'kardex' || tieneFiltrosDeCatalogo,
+    marcas: tieneFiltrosDeCatalogo,
+    categorias: tieneFiltrosDeCatalogo
   };
 
   // Filtro escalonado: al elegir marca y/o categoría, la lista de productos
-  // del select se reduce a los que coinciden (solo aplica al tab 'global').
+  // del select se reduce a los que coinciden.
   const productosFiltrados = useMemo(() => {
-    if (activeTab !== 'global') return catalogos.productos || [];
+    if (!tieneFiltrosDeCatalogo) return catalogos.productos || [];
     return (catalogos.productos || []).filter(p =>
       (!filtros.id_marca || String(p.id_marca) === String(filtros.id_marca)) &&
       (!filtros.id_clasificacion || String(p.id_clasificacion) === String(filtros.id_clasificacion))
     );
   }, [activeTab, catalogos.productos, filtros.id_marca, filtros.id_clasificacion]);
+
+  const getDetalleSucursales = (row) =>
+    Array.isArray(row.detalle_sucursales) ? row.detalle_sucursales :
+    (typeof row.detalle_sucursales === 'string' ? JSON.parse(row.detalle_sucursales || '[]') : []);
+
+  // Extrae las sucursales únicas presentes en los datos (o el catálogo, si existe).
+  // Compartido por 'global' y 'valorizado', los dos reportes multi-sucursal.
+  const getSucursalesArray = () => {
+    const sucursalesMap = new Map();
+    if (catalogos.sucursales && catalogos.sucursales.length > 0) {
+      catalogos.sucursales.forEach(s => sucursalesMap.set(s.id_sucursal, s));
+    } else {
+      datos.forEach(row => {
+        getDetalleSucursales(row).forEach(d => {
+          if (!sucursalesMap.has(d.id_sucursal)) {
+            sucursalesMap.set(d.id_sucursal, { id_sucursal: d.id_sucursal, nombre: d.sucursal_nombre, ciudad: d.ciudad || '' });
+          }
+        });
+      });
+    }
+    return Array.from(sucursalesMap.values()).sort((a, b) => a.nombre.localeCompare(b.nombre));
+  };
 
   const getColumnas = () => {
     switch (activeTab) {
@@ -91,25 +123,7 @@ export default function VistaInventario() {
           { key: 'categoria', header: 'CATEGORÍA', render: v => <span className="text-zinc-500">{v || 'Sin Categoría'}</span> },
         ];
 
-        // Extraer sucursales únicas desde los datos (o usar el catálogo si existe)
-        const sucursalesMap = new Map();
-        if (catalogos.sucursales && catalogos.sucursales.length > 0) {
-           catalogos.sucursales.forEach(s => sucursalesMap.set(s.id_sucursal, s));
-        } else {
-           datos.forEach(row => {
-             const detalle = Array.isArray(row.detalle_sucursales) ? row.detalle_sucursales :
-                             (typeof row.detalle_sucursales === 'string' ? JSON.parse(row.detalle_sucursales || '[]') : []);
-             detalle.forEach(d => {
-               if (!sucursalesMap.has(d.id_sucursal)) {
-                 sucursalesMap.set(d.id_sucursal, { id_sucursal: d.id_sucursal, nombre: d.sucursal_nombre, ciudad: d.ciudad || '' });
-               }
-             });
-           });
-        }
-
-        const sucursalesArray = Array.from(sucursalesMap.values()).sort((a, b) => a.nombre.localeCompare(b.nombre));
-
-        sucursalesArray.forEach(suc => {
+        getSucursalesArray().forEach(suc => {
           columnasGlobales.push({
             key: `sucursal_${suc.id_sucursal}`,
             header: (
@@ -121,26 +135,22 @@ export default function VistaInventario() {
             exportHeader: suc.nombre,
             align: 'center',
             render: (_, r) => {
-              const detalle = Array.isArray(r.detalle_sucursales) ? r.detalle_sucursales :
-                              (typeof r.detalle_sucursales === 'string' ? JSON.parse(r.detalle_sucursales || '[]') : []);
-              const sucData = detalle.find(d => d.id_sucursal === suc.id_sucursal);
+              const sucData = getDetalleSucursales(r).find(d => d.id_sucursal === suc.id_sucursal);
               return <span className={sucData?.stock > 0 ? "text-emerald-600 font-bold" : "text-zinc-300"}>{sucData?.stock > 0 ? sucData.stock : '—'}</span>;
             },
             excelValue: (r) => {
-              const detalle = Array.isArray(r.detalle_sucursales) ? r.detalle_sucursales :
-                              (typeof r.detalle_sucursales === 'string' ? JSON.parse(r.detalle_sucursales || '[]') : []);
-              const sucData = detalle.find(d => d.id_sucursal === suc.id_sucursal);
+              const sucData = getDetalleSucursales(r).find(d => d.id_sucursal === suc.id_sucursal);
               return sucData ? sucData.stock : 0;
             }
           });
         });
 
-        columnasGlobales.push({ 
-          key: 'stock_total_unidades', 
-          header: 'TOTAL', 
-          align: 'center', 
-          render: v => <span className="font-bold text-black dark:text-white">{v || 0}</span>, 
-          excelValue: r => r.stock_total_unidades || 0 
+        columnasGlobales.push({
+          key: 'stock_total_unidades',
+          header: 'TOTAL',
+          align: 'center',
+          render: v => <span className="font-bold text-black dark:text-white">{v || 0}</span>,
+          excelValue: r => r.stock_total_unidades || 0
         });
 
         return columnasGlobales;
@@ -152,12 +162,95 @@ export default function VistaInventario() {
           { key: 'categoria', header: 'Categoría', render: v => v || 'Sin Categoría' },
           { key: 'stock_total_unidades', header: 'Stock Total (Unid.)', align: 'center', render: v => <span className="font-bold text-blue-600">{v} u</span>, excelValue: r => r.stock_total_unidades }
         ];
-      case 'valorizado':
+      case 'valorizado': {
+        const columnasValorizado = [
+          { key: 'codigo_barras', header: 'Código', render: v => v || 'N/A' },
+          { key: 'nombre', header: 'Producto' },
+          { key: 'categoria', header: 'Categoría', render: v => <span className="text-zinc-500">{v || 'Sin Categoría'}</span> },
+        ];
+
+        getSucursalesArray().forEach(suc => {
+          columnasValorizado.push({
+            key: `sucursal_${suc.id_sucursal}`,
+            header: (
+              <div className="text-center">
+                <span className="text-emerald-600 font-bold uppercase block">{suc.nombre}</span>
+                {suc.ciudad && <span className="text-[9px] text-zinc-400 font-normal">{suc.ciudad}</span>}
+              </div>
+            ),
+            exportHeader: suc.nombre,
+            align: 'center',
+            render: (_, r) => {
+              const sucData = getDetalleSucursales(r).find(d => d.id_sucursal === suc.id_sucursal);
+              if (!sucData || !(sucData.stock > 0)) return <span className="text-zinc-300">—</span>;
+              return (
+                <div className="flex flex-col items-center">
+                  <span className="font-bold text-emerald-600">{sucData.stock} u</span>
+                  <span className="text-[10px] text-zinc-400">Bs {parseFloat(sucData.valor || 0).toFixed(2)}</span>
+                </div>
+              );
+            },
+            excelValue: (r) => {
+              const sucData = getDetalleSucursales(r).find(d => d.id_sucursal === suc.id_sucursal);
+              return sucData ? parseFloat(sucData.valor || 0) : 0;
+            }
+          });
+        });
+
+        columnasValorizado.push(
+          { key: 'stock_total_unidades', header: 'Stock Total', align: 'center', render: v => <span className="font-bold text-black dark:text-white">{v || 0} u</span>, excelValue: r => r.stock_total_unidades || 0 },
+          { key: 'costo_total_estimado', header: 'Valor Total (Bs)', align: 'right', render: v => <span className="font-bold text-emerald-600">{parseFloat(v || 0).toFixed(2)}</span>, excelValue: r => parseFloat(r.costo_total_estimado || 0) }
+        );
+
+        return columnasValorizado;
+      }
+      case 'rentabilidad':
         return [
           { key: 'codigo_barras', header: 'Código', render: v => v || 'N/A' },
           { key: 'nombre', header: 'Producto' },
-          { key: 'stock_total_unidades', header: 'Stock Total', align: 'center' },
-          { key: 'costo_total_estimado', header: 'Valor Estimado (Bs)', align: 'right', render: v => parseFloat(v).toFixed(2), excelValue: r => parseFloat(r.costo_total_estimado) }
+          { key: 'numero_lote', header: 'Lote', render: (v, r) => v || `#${r.id_lote}`, excelValue: r => r.numero_lote || `#${r.id_lote}` },
+          { key: 'stock_unidades', header: 'Stock', align: 'center', excelValue: r => r.stock_unidades },
+          { key: 'costo_unitario', header: 'Costo/Unid. (Bs)', align: 'right', render: v => parseFloat(v).toFixed(2), excelValue: r => parseFloat(r.costo_unitario) },
+          { key: 'precio_menor', header: 'Precio Venta (Bs)', align: 'right', render: v => parseFloat(v).toFixed(2), excelValue: r => parseFloat(r.precio_menor) },
+          {
+            key: 'margen_menor',
+            header: 'Margen Actual (Bs)',
+            align: 'right',
+            render: v => {
+              const m = parseFloat(v);
+              return <span className={`font-bold ${m < 0 ? 'text-red-600' : 'text-emerald-600'}`}>{m.toFixed(2)}</span>;
+            },
+            excelValue: r => parseFloat(r.margen_menor)
+          },
+          {
+            key: '_simulador',
+            header: 'Probar precio (Bs)',
+            align: 'center',
+            exportar: false, // cálculo interactivo de pantalla, no tiene sentido en Excel/PDF
+            render: (_, r) => {
+              const costo = parseFloat(r.costo_unitario);
+              const valorTexto = preciosSimulados[r.id_lote] ?? '';
+              const precioProbado = parseFloat(valorTexto);
+              const margenProbado = valorTexto !== '' && !isNaN(precioProbado) ? precioProbado - costo : null;
+              return (
+                <div className="flex flex-col items-center gap-1">
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder={parseFloat(r.precio_menor).toFixed(2)}
+                    value={valorTexto}
+                    onChange={(e) => setPreciosSimulados(prev => ({ ...prev, [r.id_lote]: e.target.value }))}
+                    className="w-20 px-1.5 py-1 text-xs text-right rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 dark:text-white"
+                  />
+                  {margenProbado !== null && (
+                    <span className={`text-[10px] font-bold ${margenProbado < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                      margen: {margenProbado.toFixed(2)}
+                    </span>
+                  )}
+                </div>
+              );
+            }
+          }
         ];
       case 'stock_bajo':
         return [
@@ -168,7 +261,7 @@ export default function VistaInventario() {
         ];
       case 'vencimientos':
         return [
-          { key: 'numero_lote', header: 'Lote', render: (v, r) => v || r.id_lote },
+          { key: 'numero_lote', header: 'Lote', render: (v, r) => v || r.id_lote, excelValue: r => r.numero_lote || r.id_lote },
           { key: 'producto_nombre', header: 'Producto' },
           { key: 'stock_unidades', header: 'Stock (Unid.)', align: 'center' },
           { key: 'fecha_vencimiento', header: 'Caducidad', excelValue: r => new Date(r.fecha_vencimiento).toLocaleDateString() },
@@ -234,7 +327,7 @@ export default function VistaInventario() {
         <div className="flex gap-6">
           <div>
             <p className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold mb-1">
-              {activeTab === 'global' ? 'Productos Distintos' : 'Registros'}
+              {esMultiSucursal ? 'Productos Distintos' : 'Registros'}
             </p>
             <p className="text-xl font-black text-zinc-900 dark:text-white">{resumen?.total_registros || 0}</p>
           </div>
@@ -254,11 +347,19 @@ export default function VistaInventario() {
               </p>
             </div>
           )}
+          {resumen?.lotes_en_perdida !== undefined && (
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold mb-1">Lotes Vendiendo a Pérdida</p>
+              <p className={`text-xl font-black ${resumen.lotes_en_perdida > 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                {resumen.lotes_en_perdida}
+              </p>
+            </div>
+          )}
         </div>
         
-        <BotonesExportar 
-          datos={datos} 
-          columnas={getColumnas()} 
+        <BotonesExportar
+          datos={datos}
+          columnas={getColumnas().filter(c => c.exportar !== false)}
           titulo={`Reporte_Inventario_${tituloActual.replace(/\s+/g, '_')}`} 
           resumen={resumen}
           subtitulo={`Filtros aplicados: ${filtros.id_producto ? 'Producto específico' : 'Todos los productos'}`}

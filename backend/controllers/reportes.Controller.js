@@ -232,7 +232,6 @@ const obtenerReporteInventario = async (req, res) => {
       }
 
       case 'actual':
-      case 'valorizado':
         query = `
           SELECT p.id_producto, p.nombre, p.codigo_barras, c.nombre as categoria,
                  SUM(l.stock_unidades) as stock_total_unidades,
@@ -246,6 +245,48 @@ const obtenerReporteInventario = async (req, res) => {
         `;
         params.push(sucursalId);
         break;
+
+      case 'valorizado': {
+        // Reporte gerencial comparativo entre TODAS las sucursales, igual que 'global'
+        // pero con el valor (costo) desglosado por sucursal además del stock.
+        let filtroProductoClauseValorizado = '';
+        if (id_producto)      { filtroProductoClauseValorizado += ' AND p.id_producto = ?';      params.push(id_producto); }
+        if (id_marca)         { filtroProductoClauseValorizado += ' AND p.id_marca = ?';         params.push(id_marca); }
+        if (id_clasificacion) { filtroProductoClauseValorizado += ' AND p.id_clasificacion = ?'; params.push(id_clasificacion); }
+
+        query = `
+          SELECT
+            p.id_producto,
+            p.nombre,
+            p.codigo_barras,
+            c.nombre as categoria,
+            SUM(stock_por_suc.total_sucursal) as stock_total_unidades,
+            SUM(stock_por_suc.costo_sucursal) as costo_total_estimado,
+            CONCAT('[', GROUP_CONCAT(
+              JSON_OBJECT(
+                'id_sucursal', stock_por_suc.id_sucursal,
+                'sucursal_nombre', stock_por_suc.sucursal_nombre,
+                'stock', stock_por_suc.total_sucursal,
+                'valor', stock_por_suc.costo_sucursal
+              )
+            ), ']') as detalle_sucursales
+          FROM producto p
+          LEFT JOIN clasificacion_producto c ON p.id_clasificacion = c.id_clasificacion
+          JOIN (
+            SELECT id_producto, s.id_sucursal, s.nombre as sucursal_nombre,
+                   SUM(stock_unidades) as total_sucursal,
+                   SUM(stock_unidades * precio_por_caja / unidades_por_caja) as costo_sucursal
+            FROM lote l
+            JOIN sucursal s ON l.id_sucursal = s.id_sucursal
+            WHERE l.activo = 1 AND l.stock_unidades > 0
+            GROUP BY id_producto, s.id_sucursal
+          ) stock_por_suc ON p.id_producto = stock_por_suc.id_producto
+          WHERE 1=1 ${filtroProductoClauseValorizado}
+          GROUP BY p.id_producto, p.nombre, p.codigo_barras, c.nombre
+          ORDER BY p.nombre ASC
+        `;
+        break;
+      }
 
       case 'stock_bajo':
         // LEFT JOIN (no INNER): un producto sin ningún lote en la sucursal tiene
@@ -278,6 +319,32 @@ const obtenerReporteInventario = async (req, res) => {
         params.push(sucursalId);
         break;
 
+      case 'rentabilidad': {
+        // Costo y margen por lote activo — a diferencia de 'actual'/'valorizado'
+        // (que agregan todo el stock de un producto en una sola fila), acá cada
+        // lote va por separado porque cada uno puede tener un costo de compra
+        // distinto, y por lo tanto un margen distinto, aunque sea el mismo producto.
+        let filtroProductoClauseRent = '';
+        if (id_producto)      { filtroProductoClauseRent += ' AND p.id_producto = ?';      params.push(id_producto); }
+        if (id_marca)         { filtroProductoClauseRent += ' AND p.id_marca = ?';         params.push(id_marca); }
+        if (id_clasificacion) { filtroProductoClauseRent += ' AND p.id_clasificacion = ?'; params.push(id_clasificacion); }
+
+        query = `
+          SELECT p.id_producto, p.nombre, p.codigo_barras, c.nombre as categoria,
+                 l.id_lote, l.numero_lote, l.stock_unidades,
+                 ROUND(l.precio_por_caja / l.unidades_por_caja, 2) as costo_unitario,
+                 p.precio_menor, p.precio_mayor,
+                 ROUND(p.precio_menor - (l.precio_por_caja / l.unidades_por_caja), 2) as margen_menor
+          FROM lote l
+          JOIN producto p ON l.id_producto = p.id_producto
+          LEFT JOIN clasificacion_producto c ON p.id_clasificacion = c.id_clasificacion
+          WHERE l.id_sucursal = ? AND l.activo = 1 AND l.stock_unidades > 0 ${filtroProductoClauseRent}
+          ORDER BY margen_menor ASC, p.nombre ASC
+        `;
+        params.unshift(sucursalId);
+        break;
+      }
+
       case 'kardex':
         if (!id_producto) return res.status(400).json({ error: 'Debe especificar un producto para el kardex' });
         query = `
@@ -303,6 +370,8 @@ const obtenerReporteInventario = async (req, res) => {
       resumen.valor_total = rows.reduce((acc, r) => acc + parseFloat(r.costo_total_estimado || 0), 0);
     } else if (tipo === 'global') {
       resumen.unidades_total = rows.reduce((acc, r) => acc + parseFloat(r.stock_total_unidades || 0), 0);
+    } else if (tipo === 'rentabilidad') {
+      resumen.lotes_en_perdida = rows.filter(r => parseFloat(r.margen_menor) < 0).length;
     }
 
     return res.json({ data: rows, resumen });

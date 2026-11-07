@@ -40,11 +40,31 @@ describe('Reportes - Compras', () => {
 });
 
 describe('Reportes - Inventario', () => {
-  ['actual', 'valorizado', 'stock_bajo', 'vencimientos', 'kardex'].forEach(tipo => {
+  ['actual', 'valorizado', 'rentabilidad', 'stock_bajo', 'vencimientos', 'kardex'].forEach(tipo => {
     test(`GET /inventario/${tipo} → 200 o 403`, async () => {
       const res = await request(app).get(`${BASE}/inventario/${tipo}`).set(headers);
       expect([200, 403]).toContain(res.status);
     });
+  });
+
+  test('GET /inventario/valorizado trae desglose por sucursal (detalle_sucursales) en vez de estar limitado a una sola sucursal', async () => {
+    const res = await request(app).get(`${BASE}/inventario/valorizado`).set(headers);
+    expect([200, 403]).toContain(res.status);
+    if (res.status === 200 && res.body.data.length > 0) {
+      const fila = res.body.data[0];
+      expect(fila).toHaveProperty('detalle_sucursales');
+      expect(fila).toHaveProperty('costo_total_estimado');
+      const detalle = Array.isArray(fila.detalle_sucursales)
+        ? fila.detalle_sucursales
+        : JSON.parse(fila.detalle_sucursales || '[]');
+      expect(Array.isArray(detalle)).toBe(true);
+      if (detalle.length > 0) {
+        expect(detalle[0]).toHaveProperty('id_sucursal');
+        expect(detalle[0]).toHaveProperty('sucursal_nombre');
+        expect(detalle[0]).toHaveProperty('stock');
+        expect(detalle[0]).toHaveProperty('valor');
+      }
+    }
   });
 });
 
