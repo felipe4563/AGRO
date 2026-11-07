@@ -3,6 +3,82 @@ import PageWrapper from '../../components/PageWrapper';
 import configuracionService from '../../services/configuracion.service';
 import { useConfiguracion } from '../../contexts/ConfiguracionContext';
 import { usePermission } from '../../hooks/usePermission';
+import {
+  soportaWebBluetooth,
+  obtenerImpresoraGuardada,
+  emparejarImpresora,
+  olvidarImpresoraGuardada,
+} from '../../utils/webBluetoothPrinter';
+
+function PanelImpresoraBluetooth() {
+  const [impresora, setImpresora] = useState(() => obtenerImpresoraGuardada());
+  const [conectando, setConectando] = useState(false);
+  const [error, setError] = useState('');
+
+  if (!soportaWebBluetooth()) return null; // Firefox, Safari/iOS, etc. — ni mostramos la opción
+
+  const conectar = async () => {
+    setConectando(true);
+    setError('');
+    try {
+      await emparejarImpresora();
+      setImpresora(obtenerImpresoraGuardada());
+    } catch (err) {
+      // El usuario cerrando el selector nativo también cae acá (NotFoundError) — no es un error real.
+      if (err.name !== 'NotFoundError') setError(err.message || 'No se pudo conectar la impresora');
+    } finally {
+      setConectando(false);
+    }
+  };
+
+  const olvidar = () => {
+    olvidarImpresoraGuardada();
+    setImpresora(null);
+  };
+
+  return (
+    <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm p-5 mt-6 max-w-5xl">
+      <h3 className="font-bold text-zinc-900 dark:text-white mb-1">Impresora Bluetooth (este dispositivo)</h3>
+      <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-4">
+        Conectala una vez acá y el botón "Imprimir Bluetooth (directo)" de los tickets ya no va a volver a
+        preguntar qué impresora usar. Esto se guarda en este navegador/computadora — si vendés desde otro
+        dispositivo, hay que conectarla ahí también.
+      </p>
+
+      <div className="flex flex-wrap items-center gap-3">
+        {impresora ? (
+          <span className="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 text-sm font-medium text-emerald-700 dark:text-emerald-300">
+            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+            Configurada: {impresora.name || 'Impresora sin nombre'}
+          </span>
+        ) : (
+          <span className="px-3 py-2 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-sm text-zinc-500 dark:text-zinc-400">
+            Ninguna impresora configurada en este dispositivo
+          </span>
+        )}
+
+        <button
+          onClick={conectar}
+          disabled={conectando}
+          className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-sm font-bold disabled:opacity-50"
+        >
+          {conectando ? 'Buscando...' : impresora ? 'Cambiar impresora' : 'Conectar impresora'}
+        </button>
+
+        {impresora && (
+          <button
+            onClick={olvidar}
+            className="px-4 py-2 rounded-xl text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 text-sm font-medium"
+          >
+            Olvidar
+          </button>
+        )}
+      </div>
+
+      {error && <p className="text-xs text-red-600 dark:text-red-400 mt-3">{error}</p>}
+    </div>
+  );
+}
 
 function Toast({ toast }) {
   if (!toast) return null;
@@ -316,6 +392,8 @@ export default function Configuracion() {
           </div>
         </div>
       </div>
+
+      <PanelImpresoraBluetooth />
     </PageWrapper>
   );
 }

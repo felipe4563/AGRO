@@ -24,6 +24,19 @@ export function linea(char = '-', ancho = ANCHO_TICKET) {
   return char.repeat(ancho);
 }
 
+// Muchas impresoras térmicas clon (incluida la probada, "POS80"/MTP-3) traen
+// de fábrica una codepágina china (GB18030) en vez de UTF-8 o Latin-1: una
+// tilde en UTF-8 ocupa 2 bytes que la impresora interpreta como un carácter
+// chino de 2 bytes, no como la letra acentuada. En vez de apostar a que la
+// impresora soporte cambiar de codepágina (ESC t n, no garantizado en todos
+// los modelos), se sacan los acentos antes de mandar el texto — funciona
+// igual en cualquier impresora ESC/POS sin importar su codepágina por defecto.
+export function quitarTildes(texto) {
+  return String(texto)
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '');
+}
+
 function utf8ToBase64(str) {
   return btoa(unescape(encodeURIComponent(str)));
 }
@@ -40,14 +53,14 @@ function bytesABase64(bytes) {
 }
 
 // Ancho en píxeles para el logo impreso — múltiplo de 8 (lo exige el formato
-// ESC/POS de imagen rasterizada). 384px se ve bien tanto en 58mm como 80mm
-// sin desbordar el papel.
-const ANCHO_LOGO_PX = 384;
+// ESC/POS de imagen rasterizada). Ajustado a ojo contra la impresora real
+// (576 = ancho completo del papel resultó demasiado grande).
+const ANCHO_LOGO_PX = 224;
 
 // Descarga el logo y lo convierte a comandos ESC/POS de imagen rasterizada
 // (GS v 0), en blanco y negro puro por umbral de luminancia — las impresoras
 // térmicas no manejan color ni escala de grises real.
-async function generarRasterLogo(logoUrl, anchoPx = ANCHO_LOGO_PX) {
+export async function generarRasterLogo(logoUrl, anchoPx = ANCHO_LOGO_PX) {
   const res = await fetch(logoUrl, { mode: 'cors' });
   if (!res.ok) throw new Error('No se pudo descargar el logo');
   const blob = await res.blob();
@@ -80,22 +93,33 @@ async function generarRasterLogo(logoUrl, anchoPx = ANCHO_LOGO_PX) {
   }
 
   const bytesFila = bytesPorFila;
-  const encabezado = new Uint8Array([
+  // GS v 0 siempre arranca a imprimir desde el margen izquierdo del papel —
+  // no se auto-centra solo por tener menos ancho que el área imprimible.
+  // Se envuelve en ESC a 1 / ESC a 0 (centrar / volver a izquierda) para que
+  // quede centrado aunque el logo sea más angosto que el papel.
+  const alinearCentro = new Uint8Array([0x1b, 0x61, 0x01]);
+  const alinearIzquierda = new Uint8Array([0x1b, 0x61, 0x00]);
+  const encabezadoImagen = new Uint8Array([
     0x1d, 0x76, 0x30, 0x00,          // GS v 0, modo normal
     bytesFila & 0xff, (bytesFila >> 8) & 0xff,
     alto & 0xff, (alto >> 8) & 0xff,
   ]);
 
-  const comando = new Uint8Array(encabezado.length + bitmapBits.length);
-  comando.set(encabezado, 0);
-  comando.set(bitmapBits, encabezado.length);
+  const comando = new Uint8Array(
+    alinearCentro.length + encabezadoImagen.length + bitmapBits.length + alinearIzquierda.length
+  );
+  let offset = 0;
+  comando.set(alinearCentro, offset); offset += alinearCentro.length;
+  comando.set(encabezadoImagen, offset); offset += encabezadoImagen.length;
+  comando.set(bitmapBits, offset); offset += bitmapBits.length;
+  comando.set(alinearIzquierda, offset);
   return comando;
 }
 
 // Dispara la impresión en RawBT (impresora térmica Bluetooth vía Android).
 // Si RawBT no está instalado, Android simplemente no abre ninguna app.
 export function imprimirConRawBT(texto) {
-  const b64 = utf8ToBase64(texto);
+  const b64 = utf8ToBase64(quitarTildes(texto));
   const url = `intent:base64,${b64}#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;`;
   window.location.href = url;
 }
@@ -105,7 +129,7 @@ export function imprimirConRawBT(texto) {
 // conexión, imagen inválida, etc.) se imprime igual el ticket, solo que sin
 // logo — el logo nunca bloquea la impresión.
 export async function imprimirConRawBTyLogo(logoUrl, texto) {
-  const textoBytes = new TextEncoder().encode(texto);
+  const textoBytes = new TextEncoder().encode(quitarTildes(texto));
   let payload = textoBytes;
 
   if (logoUrl) {

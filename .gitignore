@@ -10,3 +10,4 @@ frontend/dist/
 deploy/NUEVO-CLIENTE.md
 deploy/NUEVA-INSTANCIA.md
 instancias/
+.playwright-mcp/

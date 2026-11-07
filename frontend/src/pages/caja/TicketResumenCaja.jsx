@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import cajaService from '../../services/caja.service';
 import { imprimirConRawBTyLogo, centrar, fila, linea } from '../../utils/rawbt';
+import { imprimirConWebBluetooth, soportaWebBluetooth } from '../../utils/webBluetoothPrinter';
 import { useConfiguracion } from '../../contexts/ConfiguracionContext';
 
 const fmt = (n) => Number(n ?? 0).toFixed(2);
@@ -119,6 +120,15 @@ export default function TicketResumenCaja() {
         >
           Imprimir Bluetooth (RawBT)
         </button>
+        {soportaWebBluetooth() && (
+          <button
+            onClick={() => imprimirConWebBluetooth(tieneLogoPropio ? logoUrl : null, construirTexto())
+              .catch((err) => alert('Error al imprimir por Bluetooth: ' + err.message))}
+            className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-semibold text-sm transition-colors flex items-center gap-2"
+          >
+            Imprimir Bluetooth (directo)
+          </button>
+        )}
         <button
           onClick={() => navigate('/caja')}
           className="px-5 py-2 rounded-xl border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 font-semibold text-sm transition-colors"

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import ventaService from '../../services/venta.service';
 import { imprimirConRawBTyLogo, centrar, fila, linea } from '../../utils/rawbt';
+import { imprimirConWebBluetooth, soportaWebBluetooth } from '../../utils/webBluetoothPrinter';
 import { useConfiguracion } from '../../contexts/ConfiguracionContext';
 
 const fmt = (n) => Number(n ?? 0).toFixed(2);
@@ -149,6 +150,15 @@ export default function VentaTicket() {
         >
           Imprimir Bluetooth (RawBT)
         </button>
+        {soportaWebBluetooth() && (
+          <button
+            onClick={() => imprimirConWebBluetooth(tieneLogoPropio ? logoUrl : null, construirTextoTicket())
+              .catch((err) => alert('Error al imprimir por Bluetooth: ' + err.message))}
+            className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-semibold text-sm transition-colors flex items-center gap-2"
+          >
+            Imprimir Bluetooth (directo)
+          </button>
+        )}
         <button
           onClick={() => navigate(-1)}
           className="px-5 py-2 rounded-xl border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 font-semibold text-sm transition-colors"
@@ -160,11 +170,11 @@ export default function VentaTicket() {
       {/* ── Costo/utilidad: solo visible en pantalla para quien tiene el permiso
           (el backend ya omite estos campos si no corresponde); nunca sale impreso. */}
       {venta.costo_total !== undefined && (
-        <div className="no-print flex flex-wrap gap-4 px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 text-sm">
-          <span className="text-amber-800 dark:text-amber-300">
+        <div className="no-print flex flex-wrap gap-4 px-4 py-3 bg-amber-50 dark:bg-amber-900/40 border-b border-amber-200 dark:border-amber-700 text-sm">
+          <span className="text-amber-800 dark:text-amber-200">
             <strong>Costo:</strong> Bs {fmt(venta.costo_total)}
           </span>
-          <span className="text-amber-800 dark:text-amber-300">
+          <span className="text-amber-800 dark:text-amber-200">
             <strong>Utilidad:</strong> Bs {fmt(venta.utilidad_total)}
           </span>
         </div>
