@@ -56,7 +56,12 @@ until docker exec "$CONTENEDOR" mysql -uroot -ptemporal -e "SELECT 1" >/dev/null
 done
 
 echo "==> Cargando ${BASE_FILE}..."
-docker exec -i "$CONTENEDOR" mysql -uroot -ptemporal bd_tmp < "$BASE_FILE"
+# --default-character-set=utf8mb4 es obligatorio acá: sin esto, el cliente
+# mysql asume la codepágina del contenedor (a veces latin1/C/POSIX) para leer
+# el .sql, y cada carácter UTF-8 de 2 bytes (tildes, ñ) se interpreta como dos
+# caracteres sueltos y se guarda doblemente codificado (ej. "Dirección" queda
+# como "DirecciÃ³n"). Encontrado al probar una instancia nueva end-to-end.
+docker exec -i "$CONTENEDOR" mysql --default-character-set=utf8mb4 -uroot -ptemporal bd_tmp < "$BASE_FILE"
 
 APLICADAS=0
 for f in bd/0*.sql; do
@@ -65,13 +70,13 @@ for f in bd/0*.sql; do
   num="$(echo "$nombre" | grep -oE '^[0-9]+')"
   if [ -n "$num" ] && [ "$((10#$num))" -gt "$((10#$BASE_NUM))" ]; then
     echo "==> Aplicando ${f}..."
-    docker exec -i "$CONTENEDOR" mysql -uroot -ptemporal bd_tmp < "$f"
+    docker exec -i "$CONTENEDOR" mysql --default-character-set=utf8mb4 -uroot -ptemporal bd_tmp < "$f"
     APLICADAS=$((APLICADAS + 1))
   fi
 done
 echo "==> Migraciones aplicadas sobre la base: ${APLICADAS}."
 
 echo "==> Volcando a bd/produccion.sql..."
-docker exec "$CONTENEDOR" mysqldump -uroot -ptemporal --routines --triggers bd_tmp > bd/produccion.sql
+docker exec "$CONTENEDOR" mysqldump --default-character-set=utf8mb4 -uroot -ptemporal --routines --triggers bd_tmp > bd/produccion.sql
 
 echo "==> Listo: bd/produccion.sql regenerado (base hasta ${BASE_NUM} + ${APLICADAS} migración(es) nueva(s))."
