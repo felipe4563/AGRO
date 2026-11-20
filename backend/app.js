@@ -87,12 +87,24 @@ app.use('/api/perfil', perfilRoutes);
 app.use('/api/webhooks', webhooksRoutes);
 
 // ── Servidor ──────────────────────────────────────────────────────────────
+// Las migraciones (bd/0NN_*.sql) se aplican solas antes de aceptar tráfico —
+// ver backend/scripts/migrate.js. Si fallan, el servidor no arranca (así
+// queda visible en los logs del contenedor en vez de correr con un esquema
+// a medio actualizar).
 if (process.env.NODE_ENV !== 'test') {
+  const runMigrations = require('./scripts/migrate');
   const PORT = process.env.PORT || 3000;
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`✅ Conectado a la base de datos MySQL`);
-    console.log(`🚀 Servidor escuchando en puerto ${PORT}`);
-  });
+  runMigrations()
+    .then(() => {
+      app.listen(PORT, '0.0.0.0', () => {
+        console.log(`✅ Conectado a la base de datos MySQL`);
+        console.log(`🚀 Servidor escuchando en puerto ${PORT}`);
+      });
+    })
+    .catch((err) => {
+      console.error('❌ Error al aplicar migraciones, el servidor no arrancará:', err);
+      process.exit(1);
+    });
 }
 
 module.exports = app;

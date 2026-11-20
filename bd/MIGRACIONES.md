@@ -6,9 +6,17 @@ numerado: `NNN_descripcion.sql`. El número indica el orden en que deben aplicar
 **Regla al crear una migración nueva:** usar el siguiente número disponible
 (el más alto que exista + 1), con 3 dígitos.
 
-**Al desplegar a producción:** aplicar en orden todas las migraciones con número
-mayor al de la última que ya corriste ahí. Marca aquí cuál fue la última aplicada
-para no perder la cuenta.
+**Desde la 016 en adelante, las migraciones se aplican solas.** El backend
+(`backend/scripts/migrate.js`) las corre automáticamente al arrancar, antes
+de aceptar tráfico, llevando la cuenta en la tabla `schema_migrations`. Si
+una migración falla de verdad (no por "ya estaba aplicada"), el backend no
+levanta — queda visible en `docker compose logs backend`. Ya no hace falta
+copiarlas a mano al VPS: alcanza con que `deploy.sh` haga `git pull` y
+reinicie el contenedor.
+
+Las migraciones 001-015 se sembraron a mano en cada instancia antes de que
+existiera este runner, así que la columna de abajo documenta ese historial
+manual — de la 016 en adelante ya no hace falta llevarla.
 
 | # | Archivo | Descripción | Aplicada en producción |
 |---|---------|-------------|:---:|

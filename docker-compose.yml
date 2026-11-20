@@ -41,12 +41,17 @@ services:
       PERSONAS_API_BASE_URL: ${PERSONAS_API_BASE_URL}
       PERSONAS_API_USER: ${PERSONAS_API_USER}
       PERSONAS_API_PASSWORD: ${PERSONAS_API_PASSWORD}
+      # bd/ no viaja dentro de la imagen (ver backend/Dockerfile) — se monta
+      # como volumen para que backend/scripts/migrate.js pueda leer y aplicar
+      # las migraciones nuevas al arrancar.
+      MIGRATIONS_DIR: /app/migrations-bd
     depends_on:
       mysql:
         condition: service_healthy
     volumes:
       - backend_uploads:/app/uploads
       - backend_backups:/app/backups
+      - ./bd:/app/migrations-bd:ro
 
   frontend:
     image: ghcr.io/felipe4563/agrov1-frontend:${TAG:-latest}
