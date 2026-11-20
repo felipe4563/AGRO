@@ -18,6 +18,10 @@ const ERRORES_YA_APLICADA = new Set([
   'ER_DUP_ENTRY',       // INSERT de un permiso/rol_permiso que ya existe
   'ER_TABLE_EXISTS_ERROR', // CREATE TABLE de una tabla que ya existe
   'ER_CANT_DROP_FIELD_OR_KEY', // DROP COLUMN/KEY que ya no existe
+  'ER_FK_DUP_NAME',     // ADD CONSTRAINT ... FOREIGN KEY de un nombre de FK que ya existe
+  //                       (MySQL 8.0.16+ devuelve esto directo; versiones más
+  //                       viejas lo envuelven en ER_CANT_CREATE_TABLE — ver
+  //                       el chequeo por substring más abajo).
 ]);
 
 // Separa un archivo .sql en sentencias individuales. Simple pero consciente
