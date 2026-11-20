@@ -35,16 +35,37 @@ export default function Productos() {
   const [modalType, setModalType] = useState(null);
   const [productoActivo, setProductoActivo] = useState(null);
 
+  const [busqueda, setBusqueda] = useState('');
   const [filtroClasificacion, setFiltroClasificacion] = useState('');
   const [filtroMarca, setFiltroMarca] = useState('');
+  const [filtroUnidad, setFiltroUnidad] = useState('');
+  const [pagina, setPagina] = useState(1);
+  const PRODUCTOS_POR_PAGINA = 10;
 
   const productosFiltrados = useMemo(() => {
+    const busquedaNorm = busqueda.trim().toLowerCase();
     return productos.filter((p) => {
       if (filtroClasificacion && String(p.id_clasificacion) !== filtroClasificacion) return false;
       if (filtroMarca && String(p.id_marca) !== filtroMarca) return false;
+      if (filtroUnidad && String(p.id_unidad) !== filtroUnidad) return false;
+      if (busquedaNorm) {
+        const coincide = p.nombre?.toLowerCase().includes(busquedaNorm)
+          || p.codigo_barras?.toLowerCase().includes(busquedaNorm);
+        if (!coincide) return false;
+      }
       return true;
     });
-  }, [productos, filtroClasificacion, filtroMarca]);
+  }, [productos, busqueda, filtroClasificacion, filtroMarca, filtroUnidad]);
+
+  useEffect(() => {
+    setPagina(1);
+  }, [busqueda, filtroClasificacion, filtroMarca, filtroUnidad]);
+
+  const totalPaginas = Math.max(1, Math.ceil(productosFiltrados.length / PRODUCTOS_POR_PAGINA));
+  const productosPaginados = useMemo(() => {
+    const inicio = (pagina - 1) * PRODUCTOS_POR_PAGINA;
+    return productosFiltrados.slice(inicio, inicio + PRODUCTOS_POR_PAGINA);
+  }, [productosFiltrados, pagina]);
 
   const mostrarToast = (tipo, msg) => {
     setToast({ tipo, msg });
@@ -221,6 +242,18 @@ export default function Productos() {
       </div>
 
       <div className="mb-4 flex flex-wrap gap-3">
+        <div className="relative flex-1 min-w-[220px]">
+          <svg className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+          </svg>
+          <input
+            type="text"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            placeholder="Buscar por nombre o código de barras..."
+            className="w-full pl-9 pr-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
+          />
+        </div>
         <select
           value={filtroClasificacion}
           onChange={(e) => setFiltroClasificacion(e.target.value)}
@@ -241,9 +274,19 @@ export default function Productos() {
             <option key={m.id_marca} value={m.id_marca}>{m.nombre}</option>
           ))}
         </select>
-        {(filtroClasificacion || filtroMarca) && (
+        <select
+          value={filtroUnidad}
+          onChange={(e) => setFiltroUnidad(e.target.value)}
+          className="px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm text-zinc-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
+        >
+          <option value="">Todas las medidas</option>
+          {unidades.map((u) => (
+            <option key={u.id_unidad} value={u.id_unidad}>{u.nombre}</option>
+          ))}
+        </select>
+        {(busqueda || filtroClasificacion || filtroMarca || filtroUnidad) && (
           <button
-            onClick={() => { setFiltroClasificacion(''); setFiltroMarca(''); }}
+            onClick={() => { setBusqueda(''); setFiltroClasificacion(''); setFiltroMarca(''); setFiltroUnidad(''); }}
             className="px-3 py-2 text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-white"
           >
             Limpiar filtros
@@ -252,7 +295,7 @@ export default function Productos() {
       </div>
 
       <TablaProductos
-        productos={productosFiltrados}
+        productos={productosPaginados}
         cargando={cargando}
         onEditar={handleEditar}
         onEliminar={handleEliminar}
@@ -260,6 +303,31 @@ export default function Productos() {
         onGestionarImagen={handleGestionarImagen}
         onImprimirEtiqueta={handleImprimirEtiqueta}
       />
+
+      {!cargando && productosFiltrados.length > 0 && (
+        <div className="flex items-center justify-between mt-4 text-sm text-zinc-500 dark:text-zinc-400">
+          <p>
+            Mostrando {(pagina - 1) * PRODUCTOS_POR_PAGINA + 1}-{Math.min(pagina * PRODUCTOS_POR_PAGINA, productosFiltrados.length)} de {productosFiltrados.length}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPagina((p) => Math.max(1, p - 1))}
+              disabled={pagina === 1}
+              className="px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-zinc-50 dark:hover:bg-zinc-800"
+            >
+              Anterior
+            </button>
+            <span className="font-medium text-zinc-700 dark:text-zinc-300">Página {pagina} de {totalPaginas}</span>
+            <button
+              onClick={() => setPagina((p) => Math.min(totalPaginas, p + 1))}
+              disabled={pagina === totalPaginas}
+              className="px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-zinc-50 dark:hover:bg-zinc-800"
+            >
+              Siguiente
+            </button>
+          </div>
+        </div>
+      )}
 
       {(modalType === 'crear' || modalType === 'editar') && (
         <ModalCrearEditar
