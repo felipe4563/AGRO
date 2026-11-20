@@ -6,7 +6,11 @@ backend/uploads/
 backend/backups/
 frontend/dist/
 *.log
-*.sql
+# Las migraciones numeradas (bd/000_base.sql, bd/0NN_*.sql) SÍ viajan por git —
+# son el historial de esquema versionado (ver bd/MIGRACIONES.md). Solo se
+# ignoran el dump regenerado y los backups sueltos, nunca committeados a mano.
+bd/produccion.sql
+bd/backup_*.sql
 deploy/NUEVO-CLIENTE.md
 deploy/NUEVA-INSTANCIA.md
 instancias/
