@@ -40,37 +40,80 @@ const listarProductos = async (req, res) => {
 };
 
 const crearProducto = async (req, res) => {
-  const { 
-    id_clasificacion, id_marca, id_unidad, nombre, descripcion, codigo_barras, 
-    precio_mayor, precio_menor, descuento_mayor, descuento_menor, stock_minimo, activo 
+  const {
+    id_clasificacion, id_marca, id_unidad, nombre, descripcion, codigo_barras,
+    precio_mayor, precio_menor, descuento_mayor, descuento_menor, stock_minimo, activo,
+    cantidad_cajas, unidades_por_caja, unidades_sueltas, precio_por_caja, fecha_vencimiento
   } = req.body ?? {};
 
   if (!id_clasificacion || !id_marca || !id_unidad || !nombre || precio_mayor == null || precio_menor == null) {
     return res.status(400).json({ error: 'Faltan campos obligatorios' });
   }
 
+  // Stock inicial opcional: carga el producto y su primer lote en una sola
+  // transacción, para no obligar a pasar por Almacén → Nueva Entrada aparte.
+  const cajas = parseInt(cantidad_cajas) || 0;
+  const sueltas = parseInt(unidades_sueltas) || 0;
+  const upc = parseInt(unidades_por_caja) || 1;
+  const conStockInicial = cajas > 0 || sueltas > 0;
+
+  if (conStockInicial && !req.ability?.can('ingresar', 'almacen')) {
+    return res.status(403).json({ error: 'Sin permiso para: ingresar en almacen' });
+  }
+
+  const conn = await db.promise().getConnection();
   try {
+    await conn.beginTransaction();
+
     if (codigo_barras) {
-      const [exCodigo] = await db.promise().query('SELECT id_producto FROM producto WHERE codigo_barras = ? LIMIT 1', [codigo_barras]);
-      if (exCodigo.length > 0) return res.status(409).json({ error: 'El código de barras ya está en uso' });
+      const [exCodigo] = await conn.query('SELECT id_producto FROM producto WHERE codigo_barras = ? LIMIT 1', [codigo_barras]);
+      if (exCodigo.length > 0) {
+        await conn.rollback();
+        return res.status(409).json({ error: 'El código de barras ya está en uso' });
+      }
     }
 
-    const [result] = await db.promise().query(
-      `INSERT INTO producto 
+    const [result] = await conn.query(
+      `INSERT INTO producto
       (id_clasificacion, id_marca, id_unidad, nombre, descripcion, codigo_barras, precio_mayor, precio_menor, descuento_mayor, descuento_menor, stock_minimo, activo)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id_clasificacion, id_marca, id_unidad, nombre.trim(), descripcion ? descripcion.trim() : null,
-        codigo_barras ? codigo_barras.trim() : null, precio_mayor, precio_menor, 
+        codigo_barras ? codigo_barras.trim() : null, precio_mayor, precio_menor,
         descuento_mayor || 0, descuento_menor || 0, stock_minimo || 0,
         activo === 0 ? 0 : 1
       ]
     );
+    const id_producto = result.insertId;
 
-    return res.status(201).json({ mensaje: 'Producto creado correctamente', id_producto: result.insertId });
+    let id_lote = null;
+    if (conStockInicial) {
+      const id_sucursal = req.user.id_sucursal;
+      const stock_unidades = cajas * upc + sueltas;
+      const [loteResult] = await conn.query(
+        `INSERT INTO lote (id_producto, id_sucursal, fecha_vencimiento, fecha_ingreso_almacen,
+          cantidad_cajas, unidades_por_caja, precio_por_caja, stock_cajas, stock_unidades, observaciones)
+         VALUES (?, ?, ?, CURDATE(), ?, ?, ?, ?, ?, ?)`,
+        [id_producto, id_sucursal, fecha_vencimiento || null, cajas, upc,
+         precio_por_caja || 0, cajas, stock_unidades, 'Stock inicial al crear el producto']
+      );
+      id_lote = loteResult.insertId;
+      await conn.query(
+        `INSERT INTO movimiento_almacen
+          (id_lote, id_sucursal, id_usuario, tipo, motivo, cantidad_cajas, cantidad_unidades, referencia_tipo)
+         VALUES (?, ?, ?, 'ENTRADA', 'Stock inicial al crear el producto', ?, ?, 'MANUAL')`,
+        [id_lote, id_sucursal, req.user.id_usuario, cajas, stock_unidades]
+      );
+    }
+
+    await conn.commit();
+    return res.status(201).json({ mensaje: 'Producto creado correctamente', id_producto, id_lote });
   } catch (err) {
+    await conn.rollback();
     console.error('[crearProducto]', err);
     return res.status(500).json({ error: 'Error al crear producto' });
+  } finally {
+    conn.release();
   }
 };
 

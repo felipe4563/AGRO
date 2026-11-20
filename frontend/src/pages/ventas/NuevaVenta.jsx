@@ -418,6 +418,7 @@ export default function NuevaVenta() {
       setCarrito([...carrito, {
         id_producto: prod.id_producto,
         nombre: prod.nombre,
+        descripcion: prod.descripcion || null,
         tipo_cantidad: 'UNIDAD',
         cantidad: 1,
         precio_unitario: precioBase || 0,
@@ -1121,6 +1122,9 @@ export default function NuevaVenta() {
                 <div className="p-3 flex flex-col flex-1">
                 <h3 className="font-bold text-zinc-900 dark:text-white leading-tight mb-1 text-sm line-clamp-2">{p.nombre}</h3>
                 <p className="text-xs text-zinc-500 font-mono">{p.codigo_barras || 'S/C'}</p>
+                {p.descripcion && (
+                  <p className="text-[11px] text-sky-600 dark:text-sky-400 mt-0.5 line-clamp-2">{p.descripcion}</p>
+                )}
                 <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800 flex justify-between items-end">
                   <div>
                     <p className="text-[10px] text-zinc-400 uppercase tracking-wider">
@@ -1302,6 +1306,9 @@ export default function NuevaVenta() {
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <h4 className="font-semibold text-sm text-zinc-900 dark:text-white leading-tight line-clamp-2">{item.nombre}</h4>
+                    {item.descripcion && (
+                      <p className="text-[11px] text-sky-600 dark:text-sky-400 mt-0.5">{item.descripcion}</p>
+                    )}
                     {item.id_lote_forzado && (
                       <span className="inline-block mt-0.5 px-1.5 py-0.5 bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 text-[10px] rounded font-bold">
                         Lote: {item.lote_numero || item.id_lote_forzado}

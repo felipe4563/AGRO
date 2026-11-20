@@ -169,8 +169,9 @@ export function ModalCrearEditar({
   const puedeVerPrecios = puede('ver_precios', 'productos');
   const puedeEditarPrecios = puede('editar_precios', 'productos');
   const puedeEditarDescuentos = puede('editar_descuentos', 'productos');
+  const puedeIngresarStock = puede('ingresar', 'almacen');
   const isEditing = !!producto;
-  
+
   const [formData, setFormData] = useState({
     id_clasificacion: '',
     id_marca: '',
@@ -183,6 +184,11 @@ export function ModalCrearEditar({
     descuento_mayor: 0,
     descuento_menor: 0,
     stock_minimo: 0,
+    cantidad_cajas: 0,
+    unidades_por_caja: 1,
+    unidades_sueltas: 0,
+    precio_por_caja: 0,
+    fecha_vencimiento: '',
   });
 
   useEffect(() => {
@@ -365,6 +371,68 @@ export function ModalCrearEditar({
                 />
               </div>
             </div>
+
+            {/* Stock inicial — solo al crear, y solo con permiso de ingresar en almacén */}
+            {!isEditing && puedeIngresarStock && (
+              <div className="md:col-span-3 bg-sky-50 dark:bg-sky-900/10 p-3 rounded-xl border border-sky-200 dark:border-sky-800 space-y-3">
+                <p className="text-xs font-bold text-sky-700 dark:text-sky-400 uppercase tracking-wider">
+                  Stock inicial (opcional) — crea el primer lote junto con el producto
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1">Cajas</label>
+                    <input
+                      type="number" min="0" name="cantidad_cajas"
+                      value={formData.cantidad_cajas} onChange={handleChange}
+                      className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1">Unid./Caja</label>
+                    <input
+                      type="number" min="1" name="unidades_por_caja"
+                      value={formData.unidades_por_caja} onChange={handleChange}
+                      className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1">Unid. sueltas</label>
+                    <input
+                      type="number" min="0" name="unidades_sueltas"
+                      value={formData.unidades_sueltas} onChange={handleChange}
+                      className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1">Costo/Caja (Bs)</label>
+                    <input
+                      type="number" min="0" step="0.01" name="precio_por_caja"
+                      value={formData.precio_por_caja} onChange={handleChange}
+                      className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 outline-none"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1">Fecha de vencimiento</label>
+                    <input
+                      type="date" name="fecha_vencimiento"
+                      value={formData.fecha_vencimiento} onChange={handleChange}
+                      className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 outline-none"
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    {(formData.cantidad_cajas > 0 || formData.unidades_sueltas > 0) && (
+                      <p className="text-sm text-sky-700 dark:text-sky-300">
+                        Total a ingresar: <span className="font-bold">
+                          {(Number(formData.cantidad_cajas) || 0) * (Number(formData.unidades_por_caja) || 0) + (Number(formData.unidades_sueltas) || 0)} unidades
+                        </span>
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Descripción */}
             <div className="md:col-span-3">

@@ -720,6 +720,7 @@ const listarProductosPOS = async (req, res) => {
          c.nombre AS clasificacion_nombre,
          m.nombre AS marca_nombre,
          p.nombre,
+         p.descripcion,
          p.codigo_barras,
          p.imagen,
          p.precio_menor,
@@ -738,7 +739,7 @@ const listarProductosPOS = async (req, res) => {
          AND p.activo = 1
        GROUP BY
          p.id_producto, p.id_clasificacion, p.id_marca, c.nombre, m.nombre,
-         p.nombre, p.codigo_barras, p.imagen,
+         p.nombre, p.descripcion, p.codigo_barras, p.imagen,
          p.precio_menor, p.precio_mayor,
          p.descuento_menor, p.descuento_mayor
        ORDER BY p.nombre ASC`,
