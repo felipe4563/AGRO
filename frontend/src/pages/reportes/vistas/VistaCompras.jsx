@@ -68,7 +68,7 @@ export default function VistaCompras() {
       case 'generales':
         return [
           { key: 'id_compra', header: 'Nro Compra', render: v => `#${v.toString().padStart(5, '0')}`, excelValue: r => r.id_compra },
-          { key: 'fecha_compra', header: 'Fecha', excelValue: r => new Date(r.fecha_compra).toLocaleString() },
+          { key: 'fecha_compra', header: 'Fecha', render: v => new Date(v).toLocaleDateString(), excelValue: r => new Date(r.fecha_compra).toLocaleDateString() },
           { key: 'empresa', header: 'Proveedor', render: (_, r) => r.empresa || r.representante_legal, excelValue: r => r.empresa || r.representante_legal },
           { key: 'estado', header: 'Estado', align: 'center' },
           { key: 'total', header: 'Total (Bs)', align: 'right', render: v => parseFloat(v).toFixed(2), excelValue: r => parseFloat(r.total) }

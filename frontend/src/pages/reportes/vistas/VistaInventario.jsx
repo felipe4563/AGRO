@@ -264,7 +264,7 @@ export default function VistaInventario() {
           { key: 'numero_lote', header: 'Lote', render: (v, r) => v || r.id_lote, excelValue: r => r.numero_lote || r.id_lote },
           { key: 'producto_nombre', header: 'Producto' },
           { key: 'stock_unidades', header: 'Stock (Unid.)', align: 'center' },
-          { key: 'fecha_vencimiento', header: 'Caducidad', excelValue: r => new Date(r.fecha_vencimiento).toLocaleDateString() },
+          { key: 'fecha_vencimiento', header: 'Caducidad', render: v => v ? new Date(v).toLocaleDateString() : '—', excelValue: r => r.fecha_vencimiento ? new Date(r.fecha_vencimiento).toLocaleDateString() : '' },
           { key: 'dias_restantes', header: 'Estado', align: 'center', render: v => (
             <span className={`px-2 py-1 rounded text-xs font-bold ${v < 0 ? 'text-red-700 bg-red-100' : 'text-amber-700 bg-amber-100'}`}>
               {v < 0 ? `Vencido (${Math.abs(v)}d)` : `En ${v} d`}
@@ -273,7 +273,7 @@ export default function VistaInventario() {
         ];
       case 'kardex':
         return [
-          { key: 'fecha', header: 'Fecha', excelValue: r => new Date(r.fecha).toLocaleString() },
+          { key: 'fecha', header: 'Fecha', render: v => new Date(v).toLocaleString(), excelValue: r => new Date(r.fecha).toLocaleString() },
           { key: 'tipo', header: 'Movimiento', render: v => (
             <span className={`px-2 py-0.5 rounded text-xs border ${v==='ENTRADA' ? 'border-emerald-500 text-emerald-600' : 'border-red-500 text-red-600'}`}>{v}</span>
           ), excelValue: r => r.tipo },

@@ -65,7 +65,7 @@ export default function VistaSucursales() {
 
   const columnasTraslados = [
     { key: 'id_traslado', header: 'Nro', render: v => `#${String(v).padStart(4,'0')}`, excelValue: r => r.id_traslado },
-    { key: 'fecha_traslado', header: 'Fecha', excelValue: r => new Date(r.fecha_traslado).toLocaleString() },
+    { key: 'fecha_traslado', header: 'Fecha', render: v => new Date(v).toLocaleString(), excelValue: r => new Date(r.fecha_traslado).toLocaleString() },
     { key: 'producto_nombre', header: 'Producto' },
     { key: 'numero_lote', header: 'Lote', render: v => v || 'N/A' },
     { key: 'sucursal_origen', header: 'Origen' },

@@ -88,14 +88,14 @@ export default function VistaVentas() {
     switch (activeTab) {
       case 'diarias':
         return [
-          { key: 'fecha', header: 'Fecha', excelValue: r => new Date(r.fecha).toLocaleDateString() },
+          { key: 'fecha', header: 'Fecha', render: v => new Date(v).toLocaleDateString(), excelValue: r => new Date(r.fecha).toLocaleDateString() },
           { key: 'total_operaciones', header: 'Cantidad Operaciones', align: 'center' },
           { key: 'total_ingresos', header: 'Ingresos Totales (Bs)', align: 'right', render: v => parseFloat(v).toFixed(2), excelValue: r => parseFloat(r.total_ingresos) }
         ];
       case 'rango':
         return [
           { key: 'id_venta', header: 'Nro Venta', render: v => `#${v.toString().padStart(5, '0')}`, excelValue: r => r.id_venta },
-          { key: 'fecha_venta', header: 'Fecha', excelValue: r => new Date(r.fecha_venta).toLocaleString() },
+          { key: 'fecha_venta', header: 'Fecha', render: v => new Date(v).toLocaleString(), excelValue: r => new Date(r.fecha_venta).toLocaleString() },
           { key: 'nro_factura', header: 'Factura', render: v => v || 'S/N' },
           { key: 'cliente_nombre', header: 'Cliente', render: (_, r) => r.cliente_nombre ? `${r.cliente_nombre} ${r.cliente_apellido || ''}` : 'Casual', excelValue: r => r.cliente_nombre ? `${r.cliente_nombre} ${r.cliente_apellido || ''}` : 'Casual' },
           { key: 'vendedor_nombre', header: 'Vendedor', render: (_, r) => `${r.vendedor_nombre} ${r.vendedor_apellido}`, excelValue: r => `${r.vendedor_nombre} ${r.vendedor_apellido}` },
