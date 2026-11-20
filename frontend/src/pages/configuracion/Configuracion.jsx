@@ -37,7 +37,7 @@ function PanelImpresoraBluetooth() {
   };
 
   return (
-    <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm p-5 mt-6 max-w-5xl">
+    <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm p-5 mt-6">
       <h3 className="font-bold text-zinc-900 dark:text-white mb-1">Impresora Bluetooth (este dispositivo)</h3>
       <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-4">
         Conectala una vez acá y el botón "Imprimir Bluetooth (directo)" de los tickets ya no va a volver a
@@ -224,6 +224,7 @@ export default function Configuracion() {
     <PageWrapper>
       <Toast toast={toast} />
 
+      <div className="max-w-4xl mx-auto">
       <div className="mb-6">
         <h1 className="text-xl font-bold text-zinc-900 dark:text-white">Configuración del Negocio</h1>
         <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
@@ -231,9 +232,9 @@ export default function Configuracion() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-5xl">
+      <div className="grid grid-cols-1 sm:grid-cols-5 gap-6">
         {/* Logo — columna angosta, a la izquierda */}
-        <div className="lg:col-span-1">
+        <div className="sm:col-span-2">
           <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm p-5 lg:sticky lg:top-4">
             <h3 className="font-bold text-zinc-900 dark:text-white mb-3">Logo de la empresa</h3>
             <div
@@ -310,7 +311,7 @@ export default function Configuracion() {
         </div>
 
         {/* Datos de la empresa — columna ancha, a la derecha */}
-        <div className="lg:col-span-2">
+        <div className="sm:col-span-3">
           <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm p-5">
             <h3 className="font-bold text-zinc-900 dark:text-white mb-4">Datos de la empresa</h3>
 
@@ -394,6 +395,7 @@ export default function Configuracion() {
       </div>
 
       <PanelImpresoraBluetooth />
+      </div>
     </PageWrapper>
   );
 }

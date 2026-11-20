@@ -96,7 +96,7 @@ const ajusteInventario = async (req, res) => {
   try {
     await conn.beginTransaction();
     const [loteInfo] = await conn.query(
-      'SELECT stock_unidades, unidades_por_caja, id_sucursal FROM lote WHERE id_lote = ? FOR UPDATE',
+      'SELECT stock_unidades, stock_cajas, unidades_por_caja, id_sucursal FROM lote WHERE id_lote = ? FOR UPDATE',
       [id]
     );
     if (loteInfo.length === 0) throw new Error('Lote no encontrado');
@@ -106,13 +106,14 @@ const ajusteInventario = async (req, res) => {
 
     const stockActual = loteInfo[0].stock_unidades;
     const diferencia = nuevaCantidadNum - stockActual;
-    if (diferencia === 0) {
+    const nuevasCajas = Math.floor(nuevaCantidadNum / loteInfo[0].unidades_por_caja);
+    // Si las unidades no cambian pero stock_cajas estaba desincronizado (dato
+    // corrupto de un origen externo a este endpoint), igual se corrige.
+    if (diferencia === 0 && nuevasCajas === loteInfo[0].stock_cajas) {
       await conn.rollback();
       conn.release();
       return res.json({ mensaje: 'No hay cambios en el inventario' });
     }
-
-    const nuevasCajas = Math.floor(nuevaCantidadNum / loteInfo[0].unidades_por_caja);
     await conn.query(
       'UPDATE lote SET stock_unidades = ?, stock_cajas = ? WHERE id_lote = ?',
       [nuevaCantidadNum, nuevasCajas, id]
@@ -140,7 +141,7 @@ const crearLote = async (req, res) => {
   const id_sucursal_usuario = req.user.id_sucursal;
   const {
     id_producto, id_sucursal, numero_lote, fecha_produccion, fecha_vencimiento,
-    fecha_ingreso_almacen, cantidad_cajas, unidades_por_caja, precio_por_caja, observaciones
+    fecha_ingreso_almacen, cantidad_cajas, unidades_por_caja, unidades_sueltas, precio_por_caja, observaciones
   } = req.body;
 
   if (!id_producto || !fecha_ingreso_almacen || !cantidad_cajas || !unidades_por_caja) {
@@ -150,7 +151,10 @@ const crearLote = async (req, res) => {
   const sucursal = id_sucursal || id_sucursal_usuario;
   const cajas = parseInt(cantidad_cajas);
   const upc = parseInt(unidades_por_caja);
-  const stock_unidades = cajas * upc;
+  const sueltas = parseInt(unidades_sueltas) || 0;
+  // stock_unidades es el total real (puede no ser múltiplo de upc cuando hay
+  // unidades sueltas); stock_cajas sigue representando solo cajas completas.
+  const stock_unidades = cajas * upc + sueltas;
 
   const conn = await db.promise().getConnection();
   try {
@@ -300,7 +304,7 @@ const crearTraslado = async (req, res) => {
   try {
     await conn.beginTransaction();
     const [loteRows] = await conn.query(
-      'SELECT stock_cajas, stock_unidades, id_sucursal FROM lote WHERE id_lote = ? AND activo = 1 FOR UPDATE',
+      'SELECT stock_cajas, stock_unidades, unidades_por_caja, id_sucursal FROM lote WHERE id_lote = ? AND activo = 1 FOR UPDATE',
       [id_lote_origen]
     );
     if (loteRows.length === 0) throw new Error('Lote no encontrado o inactivo');
@@ -312,7 +316,10 @@ const crearTraslado = async (req, res) => {
     if (cajas > lote.stock_cajas) {
       throw new Error(`Stock insuficiente. Cajas disponibles: ${lote.stock_cajas}`);
     }
-    if (unidades > lote.stock_unidades) {
+    // "unidades" son sueltas, fuera de las cajas — el total real a mover
+    // incluye las unidades que van dentro de las cajas trasladadas.
+    const unidadesTotalesAMover = cajas * lote.unidades_por_caja + unidades;
+    if (unidadesTotalesAMover > lote.stock_unidades) {
       throw new Error(`Stock insuficiente. Unidades disponibles: ${lote.stock_unidades}`);
     }
 
@@ -352,19 +359,23 @@ const confirmarTraslado = async (req, res) => {
     );
     const lote = loteRows[0];
 
-    if (lote.stock_unidades < t.cantidad_unidades || lote.stock_cajas < t.cantidad_cajas) {
+    // t.cantidad_unidades son unidades sueltas (fuera de caja); el total real
+    // de unidades a mover incluye las que van dentro de las cajas trasladadas.
+    const unidadesAMover = t.cantidad_cajas * lote.unidades_por_caja + t.cantidad_unidades;
+
+    if (lote.stock_unidades < unidadesAMover || lote.stock_cajas < t.cantidad_cajas) {
       throw new Error('Stock insuficiente en el lote de origen al momento de confirmar');
     }
 
     await conn.query(
       'UPDATE lote SET stock_cajas = stock_cajas - ?, stock_unidades = stock_unidades - ? WHERE id_lote = ?',
-      [t.cantidad_cajas, t.cantidad_unidades, t.id_lote_origen]
+      [t.cantidad_cajas, unidadesAMover, t.id_lote_origen]
     );
     await conn.query(
       `INSERT INTO movimiento_almacen
         (id_lote, id_sucursal, id_usuario, tipo, motivo, cantidad_cajas, cantidad_unidades, referencia_id, referencia_tipo)
        VALUES (?, ?, ?, 'TRASLADO', 'Salida por traslado confirmado', ?, ?, ?, 'TRASLADO')`,
-      [t.id_lote_origen, lote.id_sucursal, id_usuario, t.cantidad_cajas, t.cantidad_unidades, id]
+      [t.id_lote_origen, lote.id_sucursal, id_usuario, t.cantidad_cajas, unidadesAMover, id]
     );
 
     const [loteDestRows] = await conn.query(
@@ -377,7 +388,7 @@ const confirmarTraslado = async (req, res) => {
       id_lote_dest = loteDestRows[0].id_lote;
       await conn.query(
         'UPDATE lote SET stock_cajas = stock_cajas + ?, stock_unidades = stock_unidades + ? WHERE id_lote = ?',
-        [t.cantidad_cajas, t.cantidad_unidades, id_lote_dest]
+        [t.cantidad_cajas, unidadesAMover, id_lote_dest]
       );
     } else {
       const [r2] = await conn.query(
@@ -386,7 +397,7 @@ const confirmarTraslado = async (req, res) => {
          VALUES (?, ?, ?, ?, CURDATE(), ?, ?, ?, ?, ?)`,
         [lote.id_producto, t.id_sucursal_dest, lote.numero_lote, lote.fecha_vencimiento,
          t.cantidad_cajas, lote.unidades_por_caja, lote.precio_por_caja,
-         t.cantidad_cajas, t.cantidad_unidades]
+         t.cantidad_cajas, unidadesAMover]
       );
       id_lote_dest = r2.insertId;
     }
@@ -395,7 +406,7 @@ const confirmarTraslado = async (req, res) => {
       `INSERT INTO movimiento_almacen
         (id_lote, id_sucursal, id_usuario, tipo, motivo, cantidad_cajas, cantidad_unidades, referencia_id, referencia_tipo)
        VALUES (?, ?, ?, 'ENTRADA', 'Entrada por traslado confirmado', ?, ?, ?, 'TRASLADO')`,
-      [id_lote_dest, t.id_sucursal_dest, id_usuario, t.cantidad_cajas, t.cantidad_unidades, id]
+      [id_lote_dest, t.id_sucursal_dest, id_usuario, t.cantidad_cajas, unidadesAMover, id]
     );
 
     await conn.query('UPDATE traslado SET estado = "CONFIRMADO" WHERE id_traslado = ?', [id]);

@@ -155,8 +155,6 @@ export function ModalCrearEditar({ activeTab, item, onConfirm, onClose, guardand
 export function ModalEliminar({ activeTab, item, onConfirm, onClose, guardando }) {
   if (!item) return null;
 
-  const isUnidad = activeTab === 'unidades';
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
       <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800 w-full max-w-sm overflow-hidden text-center p-6">
@@ -166,11 +164,12 @@ export function ModalEliminar({ activeTab, item, onConfirm, onClose, guardando }
           </svg>
         </div>
         <h3 className="text-lg font-bold text-zinc-900 dark:text-white mb-2">
-          ¿{isUnidad ? 'Eliminar permanentemente' : 'Desactivar'} registro?
+          ¿Eliminar permanentemente?
         </h3>
         <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-6">
-          Estás a punto de {isUnidad ? 'eliminar' : 'desactivar'} <strong className="text-zinc-700 dark:text-zinc-300">{item.nombre}</strong>.
-          {isUnidad && <span className="block mt-1 text-red-500">Esta acción no se puede deshacer.</span>}
+          Estás a punto de eliminar <strong className="text-zinc-700 dark:text-zinc-300">{item.nombre}</strong>.
+          Si está en uso por algún producto, no se podrá eliminar — en ese caso usa el interruptor de estado para desactivarlo.
+          <span className="block mt-1 text-red-500">Esta acción no se puede deshacer.</span>
         </p>
         
         <div className="flex flex-col sm:flex-row justify-center gap-3">

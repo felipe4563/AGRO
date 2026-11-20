@@ -111,7 +111,7 @@ export default function Catalogos() {
       else if (activeTab === 'marcas') await catalogoService.eliminarMarca(itemActivo.id_marca);
       else if (activeTab === 'unidades') await catalogoService.eliminarUnidad(itemActivo.id_unidad);
       
-      mostrarToast('ok', activeTab === 'unidades' ? 'Eliminado correctamente' : 'Desactivado correctamente');
+      mostrarToast('ok', 'Eliminado correctamente');
       setModalType(null);
       await cargarDatos();
     } catch (err) {

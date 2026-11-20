@@ -1,5 +1,74 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import almacenService from '../../../services/almacen.service';
+
+// Combobox con autocompletado para elegir un producto por nombre o código de
+// barras en vez de desplazarse por un <select> plano — útil cuando el
+// catálogo tiene decenas/cientos de productos.
+function SelectBuscableProducto({ value, onChange, productos, required, disabled }) {
+  const [texto, setTexto] = useState('');
+  const [abierto, setAbierto] = useState(false);
+  const contenedorRef = useRef(null);
+
+  useEffect(() => {
+    if (abierto) return;
+    if (!value) { setTexto(''); return; }
+    const seleccionado = productos.find((p) => String(p.id_producto) === String(value));
+    setTexto(seleccionado ? seleccionado.nombre : '');
+  }, [value, productos, abierto]);
+
+  useEffect(() => {
+    const handleClickFuera = (e) => {
+      if (contenedorRef.current && !contenedorRef.current.contains(e.target)) setAbierto(false);
+    };
+    document.addEventListener('mousedown', handleClickFuera);
+    return () => document.removeEventListener('mousedown', handleClickFuera);
+  }, []);
+
+  const filtrados = texto.trim()
+    ? productos.filter((p) =>
+        p.nombre.toLowerCase().includes(texto.trim().toLowerCase()) ||
+        (p.codigo_barras || '').toLowerCase().includes(texto.trim().toLowerCase())
+      )
+    : productos;
+
+  const seleccionar = (p) => {
+    onChange(String(p.id_producto));
+    setTexto(p.nombre);
+    setAbierto(false);
+  };
+
+  return (
+    <div className="relative" ref={contenedorRef}>
+      <input
+        type="text"
+        required={required}
+        value={texto}
+        placeholder="Buscar producto por nombre o código..."
+        onChange={(e) => { setTexto(e.target.value); if (value) onChange(''); }}
+        onFocus={() => setAbierto(true)}
+        disabled={disabled}
+        className="w-full px-3 py-2 text-sm rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-60"
+      />
+      {abierto && (
+        <ul className="absolute z-20 mt-1 w-full max-h-48 overflow-y-auto bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-lg">
+          {filtrados.length === 0 ? (
+            <li className="px-3 py-1.5 text-sm text-zinc-400">Sin coincidencias</li>
+          ) : (
+            filtrados.map((p) => (
+              <li
+                key={p.id_producto}
+                onClick={() => seleccionar(p)}
+                className="px-3 py-1.5 text-sm cursor-pointer hover:bg-emerald-50 dark:hover:bg-emerald-900/30 text-zinc-800 dark:text-zinc-100"
+              >
+                {p.nombre} {p.codigo_barras ? `(${p.codigo_barras})` : ''}
+              </li>
+            ))
+          )}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 // ─── Modal: Nueva Entrada (crear lote) ───────────────────────────────────────
 export function ModalEntrada({ onConfirm, onClose, guardando }) {
@@ -13,6 +82,7 @@ export function ModalEntrada({ onConfirm, onClose, guardando }) {
     fecha_ingreso_almacen: hoy,
     cantidad_cajas: '',
     unidades_por_caja: '1',
+    unidades_sueltas: '',
     precio_por_caja: '',
     observaciones: '',
   });
@@ -31,11 +101,13 @@ export function ModalEntrada({ onConfirm, onClose, guardando }) {
       ...form,
       cantidad_cajas: parseInt(form.cantidad_cajas),
       unidades_por_caja: parseInt(form.unidades_por_caja),
+      unidades_sueltas: parseInt(form.unidades_sueltas) || 0,
       precio_por_caja: parseFloat(form.precio_por_caja) || 0,
     });
   };
 
-  const totalUnidades = (parseInt(form.cantidad_cajas) || 0) * (parseInt(form.unidades_por_caja) || 0);
+  const sueltas = parseInt(form.unidades_sueltas) || 0;
+  const totalUnidades = (parseInt(form.cantidad_cajas) || 0) * (parseInt(form.unidades_por_caja) || 0) + sueltas;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
@@ -52,19 +124,12 @@ export function ModalEntrada({ onConfirm, onClose, guardando }) {
         <form id="form-entrada" onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-4">
           <div>
             <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">Producto *</label>
-            <select
+            <SelectBuscableProducto
               required
               value={form.id_producto}
-              onChange={e => set('id_producto', e.target.value)}
-              className="w-full px-3 py-2 text-sm rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            >
-              <option value="">Seleccione un producto...</option>
-              {productos.map(p => (
-                <option key={p.id_producto} value={p.id_producto}>
-                  {p.nombre} {p.codigo_barras ? `(${p.codigo_barras})` : ''}
-                </option>
-              ))}
-            </select>
+              onChange={v => set('id_producto', v)}
+              productos={productos}
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -147,9 +212,21 @@ export function ModalEntrada({ onConfirm, onClose, guardando }) {
             </div>
           </div>
 
+          <div>
+            <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">Unidades sueltas (adicionales, fuera de caja)</label>
+            <input
+              type="number"
+              min="0"
+              value={form.unidades_sueltas}
+              onChange={e => set('unidades_sueltas', e.target.value)}
+              placeholder="0"
+              className="w-full px-3 py-2 text-sm rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            />
+          </div>
+
           {totalUnidades > 0 && (
             <div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-xl text-sm text-emerald-700 dark:text-emerald-300">
-              Total a ingresar: <span className="font-bold">{totalUnidades} unidades</span> ({form.cantidad_cajas} cajas × {form.unidades_por_caja} u/caja)
+              Total a ingresar: <span className="font-bold">{totalUnidades} unidades</span> ({form.cantidad_cajas || 0} cajas × {form.unidades_por_caja || 0} u/caja{sueltas > 0 ? ` + ${sueltas} sueltas` : ''})
             </div>
           )}
 

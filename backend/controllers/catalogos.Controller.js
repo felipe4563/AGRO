@@ -48,10 +48,15 @@ const editarClasificacion = async (req, res) => {
 };
 
 const eliminarClasificacion = async (req, res) => {
+  // Eliminación física si no está en uso; si algún producto la referencia,
+  // la FK lo impide y se informa para usar el interruptor de estado en su lugar.
   try {
-    await db.promise().query('UPDATE clasificacion_producto SET activo = 0 WHERE id_clasificacion = ?', [req.params.id]);
-    return res.json({ mensaje: 'Clasificación desactivada' });
+    await db.promise().query('DELETE FROM clasificacion_producto WHERE id_clasificacion = ?', [req.params.id]);
+    return res.json({ mensaje: 'Clasificación eliminada' });
   } catch (err) {
+    if (err.code === 'ER_ROW_IS_REFERENCED_2' || err.code === 'ER_ROW_IS_REFERENCED') {
+      return res.status(409).json({ error: 'No se puede eliminar porque tiene productos asociados. Desactívala en su lugar.' });
+    }
     return res.status(500).json({ error: 'Error al eliminar' });
   }
 };
@@ -112,10 +117,15 @@ const editarMarca = async (req, res) => {
 };
 
 const eliminarMarca = async (req, res) => {
+  // Eliminación física si no está en uso; si algún producto la referencia,
+  // la FK lo impide y se informa para usar el interruptor de estado en su lugar.
   try {
-    await db.promise().query('UPDATE marca SET activo = 0 WHERE id_marca = ?', [req.params.id]);
-    return res.json({ mensaje: 'Marca desactivada' });
+    await db.promise().query('DELETE FROM marca WHERE id_marca = ?', [req.params.id]);
+    return res.json({ mensaje: 'Marca eliminada' });
   } catch (err) {
+    if (err.code === 'ER_ROW_IS_REFERENCED_2' || err.code === 'ER_ROW_IS_REFERENCED') {
+      return res.status(409).json({ error: 'No se puede eliminar porque tiene productos asociados. Desactívala en su lugar.' });
+    }
     return res.status(500).json({ error: 'Error al eliminar' });
   }
 };

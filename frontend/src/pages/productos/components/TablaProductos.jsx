@@ -1,6 +1,58 @@
+import { useState } from 'react';
 import { usePermission } from '../../../hooks/usePermission';
 
 const API_BASE = import.meta.env.VITE_API_URL.replace('/api', '');
+
+function ModalZoomImagen({ src, alt, onClose }) {
+  if (!src) return null;
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm cursor-zoom-out"
+      onClick={onClose}
+    >
+      <button
+        onClick={onClose}
+        className="absolute top-4 right-4 text-white/80 hover:text-white"
+        title="Cerrar"
+      >
+        <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+      <img
+        src={src}
+        alt={alt}
+        className="max-w-full max-h-full rounded-xl shadow-2xl object-contain cursor-default"
+        onClick={(e) => e.stopPropagation()}
+      />
+    </div>
+  );
+}
+
+function Miniatura({ p, size = 'w-10 h-10', iconSize = 'w-5 h-5', onZoom }) {
+  return (
+    <div
+      className={`${size} shrink-0 rounded-lg overflow-hidden bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center border border-zinc-200 dark:border-zinc-700 relative group ${p.imagen ? 'cursor-zoom-in' : ''}`}
+      onClick={() => p.imagen && onZoom(`${API_BASE}/uploads/${p.imagen}`, p.nombre)}
+      title={p.imagen ? 'Ver imagen' : undefined}
+    >
+      {p.imagen ? (
+        <>
+          <img src={`${API_BASE}/uploads/${p.imagen}`} alt={p.nombre} className="w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+            <svg className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM10.5 7.5v6m3-3h-6" />
+            </svg>
+          </div>
+        </>
+      ) : (
+        <svg className={`${iconSize} text-zinc-300 dark:text-zinc-600`} fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909" />
+        </svg>
+      )}
+    </div>
+  );
+}
 
 function AccionesProducto({ p, onEditar, onEliminar, onGestionarImagen, onImprimirEtiqueta, puede }) {
   return (
@@ -89,6 +141,8 @@ export default function TablaProductos({
   onImprimirEtiqueta,
 }) {
   const { puede } = usePermission();
+  const [imagenZoom, setImagenZoom] = useState(null);
+  const abrirZoom = (src, alt) => setImagenZoom({ src, alt });
 
   if (cargando) {
     return (
@@ -121,15 +175,7 @@ export default function TablaProductos({
             className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm p-4"
           >
             <div className="flex gap-3">
-              <div className="w-14 h-14 shrink-0 rounded-lg overflow-hidden bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center border border-zinc-200 dark:border-zinc-700">
-                {p.imagen ? (
-                  <img src={`${API_BASE}/uploads/${p.imagen}`} alt={p.nombre} className="w-full h-full object-cover" />
-                ) : (
-                  <svg className="w-6 h-6 text-zinc-300 dark:text-zinc-600" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909" />
-                  </svg>
-                )}
-              </div>
+              <Miniatura p={p} size="w-14 h-14" iconSize="w-6 h-6" onZoom={abrirZoom} />
               <div className="min-w-0 flex-1">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
@@ -187,15 +233,7 @@ export default function TablaProductos({
               {productos.map((p) => (
                 <tr key={p.id_producto} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
                   <td className="px-4 py-3">
-                    <div className="w-10 h-10 rounded-lg overflow-hidden bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center border border-zinc-200 dark:border-zinc-700">
-                      {p.imagen ? (
-                        <img src={`${API_BASE}/uploads/${p.imagen}`} alt={p.nombre} className="w-full h-full object-cover" />
-                      ) : (
-                        <svg className="w-5 h-5 text-zinc-300 dark:text-zinc-600" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909" />
-                        </svg>
-                      )}
-                    </div>
+                    <Miniatura p={p} onZoom={abrirZoom} />
                   </td>
                   <td className="px-4 py-3">
                     <p className="text-sm font-semibold text-zinc-900 dark:text-white">
@@ -244,6 +282,14 @@ export default function TablaProductos({
           </table>
         </div>
       </div>
+
+      {imagenZoom && (
+        <ModalZoomImagen
+          src={imagenZoom.src}
+          alt={imagenZoom.alt}
+          onClose={() => setImagenZoom(null)}
+        />
+      )}
     </>
   );
 }
