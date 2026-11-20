@@ -10,6 +10,7 @@ router.get('/lotes/:id',        checkPermission('ver_movimientos', 'almacen'), c
 router.post('/lotes',           checkPermission('ingresar', 'almacen'),      ctrl.crearLote);
 router.post('/lotes/:id/ajuste', checkPermission('ajustar', 'almacen'),     ctrl.ajusteInventario);
 router.patch('/lotes/:id/baja', checkPermission('dar_baja_lote', 'almacen'), ctrl.darBajaLote);
+router.delete('/lotes/:id',     checkPermission('eliminar', 'almacen'),      ctrl.eliminarLote);
 router.post('/lotes/:id/generar-codigo-barras', checkPermission('ver', 'almacen'), ctrl.generarCodigoBarrasLote);
 
 // Traslados (catálogo propio "traslados.*", separado de "almacen.trasladar")

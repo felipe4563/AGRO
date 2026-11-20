@@ -244,6 +244,54 @@ export function ModalBaja({ lote, onConfirm, onClose, guardando }) {
   );
 }
 
+// ─── Modal: Eliminar Lote (duplicado o error de carga) ──────────────────────
+export function ModalEliminarLote({ lote, onConfirm, onClose, guardando }) {
+  if (!lote) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800 w-full max-w-md">
+        <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
+          <h3 className="text-lg font-bold text-zinc-900 dark:text-white">Eliminar Lote</h3>
+          <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="p-6 space-y-3">
+          <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
+            <p className="text-sm font-semibold text-red-800 dark:text-red-300">{lote.producto_nombre}</p>
+            <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+              Lote: {lote.numero_lote || `ID-${lote.id_lote}`} · Stock: {lote.stock_unidades} unidades
+            </p>
+          </div>
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+            Esta acción borra el lote por completo, sin dejar rastro en el kardex. Úsala solo para
+            lotes duplicados o cargados por error. Si el lote tuvo ventas, compras o traslados,
+            el sistema no permitirá eliminarlo — en ese caso usa "Dar de Baja".
+          </p>
+        </div>
+        <div className="px-6 py-4 bg-zinc-50 dark:bg-zinc-800/50 border-t border-zinc-200 dark:border-zinc-800 flex justify-end gap-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={guardando}
+            className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-500 rounded-xl disabled:opacity-50 transition-colors"
+          >
+            {guardando ? 'Eliminando...' : 'Eliminar definitivamente'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Modal: Crear Traslado ────────────────────────────────────────────────────
 export function ModalTraslado({ lote, onConfirm, onClose, guardando }) {
   const [sucursales, setSucursales] = useState([]);

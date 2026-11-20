@@ -4,7 +4,7 @@ import TablaLotes from './components/TablaLotes';
 import TablaTraslados from './components/TablaTraslados';
 import PanelAlertas from './components/PanelAlertas';
 import DetalleLoteModal from './components/DetalleLoteModal';
-import { ModalEntrada, ModalAjuste, ModalBaja, ModalTraslado } from './components/AlmacenModals';
+import { ModalEntrada, ModalAjuste, ModalBaja, ModalEliminarLote, ModalTraslado } from './components/AlmacenModals';
 import ModalImprimirEtiquetas from '../../components/ModalImprimirEtiquetas';
 import almacenService from '../../services/almacen.service';
 import { usePermission } from '../../hooks/usePermission';
@@ -196,6 +196,21 @@ export default function Almacen() {
     }
   };
 
+  const handleEliminarLote = async () => {
+    if (!loteActivo) return;
+    setGuardando(true);
+    try {
+      await almacenService.eliminarLote(loteActivo.id_lote);
+      mostrarToast('ok', 'Lote eliminado correctamente');
+      setModalType(null);
+      await cargarLotes();
+    } catch (err) {
+      mostrarToast('error', err.response?.data?.error || 'Error al eliminar el lote');
+    } finally {
+      setGuardando(false);
+    }
+  };
+
   // ── Handlers: Traslados ────────────────────────────────────────────────────
   const handleCrearTraslado = async (data) => {
     setGuardando(true);
@@ -350,6 +365,7 @@ export default function Almacen() {
             onAjustar={(l) => { setLoteActivo(l); setModalType('ajuste'); }}
             onNuevoTraslado={(l) => { setLoteActivo(l); setModalType('traslado'); }}
             onDarBaja={(l) => { setLoteActivo(l); setModalType('baja'); }}
+            onEliminar={(l) => { setLoteActivo(l); setModalType('eliminar'); }}
             onImprimirEtiqueta={(l) => { setLoteActivo(l); setModalType('etiqueta'); }}
           />
         </>
@@ -448,6 +464,15 @@ export default function Almacen() {
         <ModalBaja
           lote={loteActivo}
           onConfirm={handleDarBaja}
+          onClose={() => setModalType(null)}
+          guardando={guardando}
+        />
+      )}
+
+      {modalType === 'eliminar' && (
+        <ModalEliminarLote
+          lote={loteActivo}
+          onConfirm={handleEliminarLote}
           onClose={() => setModalType(null)}
           guardando={guardando}
         />

@@ -7,6 +7,7 @@ const almacenService = {
   crearLote:         (data)     => api.post('/almacen/lotes', data),
   ajustarLote:       (id, data) => api.post(`/almacen/lotes/${id}/ajuste`, data),
   darBajaLote:       (id, data) => api.patch(`/almacen/lotes/${id}/baja`, data),
+  eliminarLote:      (id) => api.delete(`/almacen/lotes/${id}`),
 
   listarTraslados:   ()         => api.get('/almacen/traslados'),
   crearTraslado:     (data)     => api.post('/almacen/traslados', data),

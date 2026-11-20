@@ -222,6 +222,42 @@ const darBajaLote = async (req, res) => {
   }
 };
 
+// Elimina definitivamente un lote creado por error o duplicado. A diferencia
+// de "dar de baja" (que conserva el registro como evidencia de una pérdida
+// real), esto borra el lote por completo — por eso solo se permite si nunca
+// tuvo ventas, compras ni traslados asociados.
+const eliminarLote = async (req, res) => {
+  const { id } = req.params;
+
+  const conn = await db.promise().getConnection();
+  try {
+    await conn.beginTransaction();
+    const [loteRows] = await conn.query('SELECT id_sucursal FROM lote WHERE id_lote = ? FOR UPDATE', [id]);
+    if (loteRows.length === 0) throw new Error('Lote no encontrado');
+    if (loteRows[0].id_sucursal !== req.user.id_sucursal) {
+      throw new Error('No puede eliminar un lote de otra sucursal');
+    }
+
+    const [[ventas]] = await conn.query('SELECT COUNT(*) as cnt FROM detalle_venta WHERE id_lote = ?', [id]);
+    const [[compras]] = await conn.query('SELECT COUNT(*) as cnt FROM detalle_compra WHERE id_lote = ?', [id]);
+    const [[traslados]] = await conn.query('SELECT COUNT(*) as cnt FROM traslado WHERE id_lote_origen = ?', [id]);
+    if (ventas.cnt > 0 || compras.cnt > 0 || traslados.cnt > 0) {
+      throw new Error('Este lote tiene ventas, compras o traslados asociados; no se puede eliminar. Use "Dar de baja" en su lugar.');
+    }
+
+    await conn.query('DELETE FROM movimiento_almacen WHERE id_lote = ?', [id]);
+    await conn.query('DELETE FROM lote WHERE id_lote = ?', [id]);
+    await conn.commit();
+    return res.json({ mensaje: 'Lote eliminado correctamente' });
+  } catch (err) {
+    await conn.rollback();
+    console.error('[eliminarLote]', err);
+    return res.status(400).json({ error: mensajeSeguro(err, 'Error al eliminar el lote') });
+  } finally {
+    conn.release();
+  }
+};
+
 const listarTraslados = async (req, res) => {
   try {
     const [rows] = await db.promise().query(
@@ -462,6 +498,7 @@ module.exports = {
   ajusteInventario,
   crearLote,
   darBajaLote,
+  eliminarLote,
   listarTraslados,
   crearTraslado,
   confirmarTraslado,
