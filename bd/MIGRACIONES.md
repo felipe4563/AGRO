@@ -24,6 +24,9 @@ para no perder la cuenta.
 | 010 | `010_codepay.sql` | QR CodePay: tercer tipo de QR de venta + tabla de estado de transacciones | |
 | 011 | `011_estado_compra_anulada.sql` | Corrige `compra.estado`: agrega `'ANULADA'` al enum (faltaba, causaba estado vacío al anular) y arregla el DEFAULT | |
 | 012 | `012_rentabilidad.sql` | Permiso `reportes.rentabilidad`: reporte de costo de lote vs precio de venta + calculadora de margen | |
+| 013 | `013_flujo_caja.sql` | Permiso `reportes.caja_flujo`: flujo de caja diario detallado (ingresos vs egresos, efectivo/digital, acumulado) | |
+| 014 | `014_categoria_gasto_caja.sql` | `gasto_caja` gana `tipo` (ingreso/egreso) y `categoria` (variable/fijo/retiro/otro) + permiso `caja.clasificar_gastos` | |
+| 015 | `015_eliminar_lote.sql` | Permiso `almacen.eliminar`: borrar definitivamente un lote duplicado/erróneo sin ventas, compras ni traslados asociados | |
 
 `produccion.sql` siempre refleja el esquema final con todas las migraciones ya
 incorporadas — sirve para instalar el sistema desde cero, no para actualizar una

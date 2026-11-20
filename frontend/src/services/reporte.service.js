@@ -11,6 +11,7 @@ const reporteService = {
   traslados:             (params) => api.get('/reportes/sucursales/traslados', { params }),
   comparativoSucursales: (params) => api.get('/reportes/sucursales/comparativo', { params }),
   caja: (params) => api.get('/reportes/caja', { params }),
+  flujoCaja: (mes) => api.get('/reportes/caja/flujo', { params: { mes } }),
   catalogos: {
     clientes:        () => api.get('/clientes'),
     proveedores:     () => api.get('/proveedores'),

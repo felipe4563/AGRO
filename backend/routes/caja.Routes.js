@@ -17,6 +17,8 @@ router.get('/turnos/:id/resumen', checkPermission('ver_historial', 'caja'), ctrl
 
 router.get('/gastos',  checkPermission('ver_gastos', 'caja'),      ctrl.listarGastos);
 router.post('/gastos', checkPermission('registrar_gasto', 'caja'), ctrl.registrarGasto);
+router.get('/gastos/conceptos',    checkPermission('ver_gastos', 'caja'),          ctrl.listarConceptosGasto);
+router.patch('/gastos/clasificar', checkPermission('clasificar_gastos', 'caja'),   ctrl.reclasificarConcepto);
 
 router.get('/libro', checkPermission('ver_libro', 'caja'), ctrl.obtenerLibroCaja);
 

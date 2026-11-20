@@ -3,7 +3,8 @@ import PageWrapper from '../../components/PageWrapper';
 import reporteService from '../../services/reporte.service';
 import FiltrosAvanzados from './components/FiltrosAvanzados';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
+  AreaChart, Area
 } from 'recharts';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -17,6 +18,7 @@ export default function DashboardReportes() {
   const [financiero, setFinanciero] = useState(null);
   const [topProductos, setTopProductos] = useState([]);
   const [vencimientos, setVencimientos] = useState([]);
+  const [ventasDiarias, setVentasDiarias] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [exportando, setExportando] = useState(false);
   const [filtros, setFiltros] = useState({});
@@ -39,14 +41,23 @@ export default function DashboardReportes() {
       const params = filtros.fechaInicio && filtros.fechaFin
         ? { fechaInicio: filtros.fechaInicio, fechaFin: filtros.fechaFin }
         : undefined;
-      const [finRes, topRes, venRes] = await Promise.all([
+      // El reporte 'diarias' no tiene un default de "mes actual" como financiero/topProductos:
+      // sin rango explícito traería el historial completo. Se fija siempre un rango acotado.
+      const hoy = new Date();
+      const paramsDiarias = params || {
+        fechaInicio: new Date(hoy.getFullYear(), hoy.getMonth(), 1).toISOString().slice(0, 10),
+        fechaFin: hoy.toISOString().slice(0, 10)
+      };
+      const [finRes, topRes, venRes, diariasRes] = await Promise.all([
         reporteService.financiero(params),
         reporteService.topProductos(params),
-        reporteService.vencimientos()
+        reporteService.vencimientos(),
+        reporteService.ventas('diarias', paramsDiarias)
       ]);
       setFinanciero(finRes.data);
       setTopProductos(topRes.data);
       setVencimientos(venRes.data);
+      setVentasDiarias((diariasRes.data.data || diariasRes.data || []).slice().reverse());
     } catch (err) {
       console.error(err);
       alert('Error al cargar datos del dashboard');
@@ -89,6 +100,10 @@ export default function DashboardReportes() {
             ['Ventas del período', `Bs ${parseFloat(financiero.ingresos_mes).toLocaleString()}`],
             ['Compras del período', `Bs ${parseFloat(financiero.egresos_mes).toLocaleString()}`],
             ['Flujo bruto (Ventas - Compras)', `Bs ${parseFloat(financiero.utilidad_bruta_mes).toLocaleString()}`],
+            ['Ticket promedio', `Bs ${parseFloat(financiero.ticket_promedio).toLocaleString()} (${financiero.cantidad_ventas || 0} ventas)`],
+            ['Cuentas por cobrar', `Bs ${parseFloat(financiero.total_por_cobrar).toLocaleString()}`],
+            ['Cuentas por pagar', `Bs ${parseFloat(financiero.total_por_pagar).toLocaleString()}`],
+            ['Productos con stock bajo', `${financiero.productos_stock_bajo || 0}`],
             ['Ventas de hoy', `${financiero.ventas_hoy_cantidad} (Bs ${parseFloat(financiero.ingresos_hoy).toLocaleString()})`],
           ],
           styles: { fontSize: 9 },
@@ -167,6 +182,42 @@ export default function DashboardReportes() {
 
   const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6'];
 
+  const fmtBs = (v) => `Bs ${parseFloat(v || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+
+  function TendenciaBadge({ valor, invertirColor = false }) {
+    if (valor === undefined || valor === null) return null;
+    const num = parseFloat(valor);
+    const subio = num >= 0;
+    const esBueno = invertirColor ? !subio : subio;
+    return (
+      <span className={`inline-flex items-center gap-1 text-xs font-bold px-1.5 py-0.5 rounded-md ${
+        esBueno ? 'text-emerald-700 bg-emerald-100 dark:text-emerald-400 dark:bg-emerald-900/30'
+                : 'text-red-700 bg-red-100 dark:text-red-400 dark:bg-red-900/30'
+      }`}>
+        <svg className={`w-3 h-3 ${subio ? '' : 'rotate-180'}`} fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M10 17a.75.75 0 01-.75-.75V5.56L5.03 9.78a.75.75 0 01-1.06-1.06l5.5-5.5a.75.75 0 011.06 0l5.5 5.5a.75.75 0 11-1.06 1.06L10.75 5.56v10.69A.75.75 0 0110 17z" clipRule="evenodd" />
+        </svg>
+        {Math.abs(num).toFixed(1)}%
+      </span>
+    );
+  }
+
+  function TarjetaKPI({ titulo, valor, subtitulo, colorValor, tendencia, tendenciaInvertida, icono }) {
+    return (
+      <div className="bg-white dark:bg-zinc-900 rounded-2xl p-5 border border-zinc-200 dark:border-zinc-800 shadow-sm">
+        <div className="flex items-start justify-between gap-2 mb-2">
+          <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">{titulo}</p>
+          {icono}
+        </div>
+        <h3 className={`text-2xl font-black ${colorValor}`}>{valor}</h3>
+        <div className="flex items-center gap-2 mt-2">
+          {tendencia !== undefined && <TendenciaBadge valor={tendencia} invertirColor={tendenciaInvertida} />}
+          {subtitulo && <p className="text-xs text-zinc-400">{subtitulo}</p>}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <PageWrapper>
       <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -216,34 +267,84 @@ export default function DashboardReportes() {
 
         {/* Tarjetas KPI (Financiero) */}
         {financiero && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 border border-zinc-200 dark:border-zinc-800 shadow-sm relative overflow-hidden">
-              <div className="absolute top-0 right-0 p-4 opacity-10">
-                <svg className="w-16 h-16 text-emerald-500" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
-              </div>
-              <p className="text-sm font-semibold text-zinc-500 uppercase tracking-wider mb-2">Ventas del Período</p>
-              <h3 className="text-3xl font-black text-emerald-600 dark:text-emerald-400">Bs {parseFloat(financiero.ingresos_mes).toLocaleString()}</h3>
-              <p className="text-xs text-zinc-400 mt-2">Ingresos hoy: Bs {parseFloat(financiero.ingresos_hoy).toLocaleString()}</p>
-            </div>
+          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+            <TarjetaKPI
+              titulo="Ventas del Período"
+              valor={fmtBs(financiero.ingresos_mes)}
+              colorValor="text-emerald-600 dark:text-emerald-400"
+              tendencia={financiero.variacion_ventas}
+              subtitulo={`Hoy: ${fmtBs(financiero.ingresos_hoy)}`}
+              icono={<svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>}
+            />
+            <TarjetaKPI
+              titulo="Compras del Período"
+              valor={fmtBs(financiero.egresos_mes)}
+              colorValor="text-red-600 dark:text-red-400"
+              tendencia={financiero.variacion_compras}
+              tendenciaInvertida
+              subtitulo="Gastos en inventario"
+              icono={<svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 13H5v-2h14v2z"/></svg>}
+            />
+            <TarjetaKPI
+              titulo="Flujo Bruto"
+              valor={fmtBs(financiero.utilidad_bruta_mes)}
+              colorValor={financiero.utilidad_bruta_mes >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-orange-600 dark:text-orange-400'}
+              subtitulo="Ventas - Compras"
+              icono={<svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg>}
+            />
+            <TarjetaKPI
+              titulo="Ticket Promedio"
+              valor={fmtBs(financiero.ticket_promedio)}
+              colorValor="text-purple-600 dark:text-purple-400"
+              subtitulo={`${financiero.cantidad_ventas || 0} ventas`}
+              icono={<svg className="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" /></svg>}
+            />
+            <TarjetaKPI
+              titulo="Por Cobrar"
+              valor={fmtBs(financiero.total_por_cobrar)}
+              colorValor="text-amber-600 dark:text-amber-400"
+              subtitulo="Créditos a clientes"
+              icono={<svg className="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 9h3.75M15 12h3.75M15 15h3.75M4.5 19.5h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5zm6-10.125a1.875 1.875 0 11-3.75 0 1.875 1.875 0 013.75 0zm1.294 6.336a6.721 6.721 0 01-3.17.789 6.721 6.721 0 01-3.168-.789 3.376 3.376 0 016.338 0z" /></svg>}
+            />
+            <TarjetaKPI
+              titulo="Por Pagar"
+              valor={fmtBs(financiero.total_por_pagar)}
+              colorValor="text-orange-600 dark:text-orange-400"
+              subtitulo={financiero.productos_stock_bajo > 0 ? `${financiero.productos_stock_bajo} prod. con stock bajo` : 'A proveedores'}
+              icono={<svg className="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 7.5l-2.25-1.313M21 7.5v2.25m0-2.25l-2.25 1.313M3 7.5l2.25-1.313M3 7.5l2.25 1.313M3 7.5v2.25m9 3l2.25-1.313M12 12.75l-2.25-1.313M12 12.75V15m0 6.75l2.25-1.313M12 21.75V19.5m0 2.25l-2.25-1.313m0-16.875L12 2.25l2.25 1.313M21 14.25v2.25l-2.25 1.313m-13.5 0L3 16.5v-2.25" /></svg>}
+            />
+          </div>
+        )}
 
-            <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 border border-zinc-200 dark:border-zinc-800 shadow-sm relative overflow-hidden">
-               <div className="absolute top-0 right-0 p-4 opacity-10">
-                <svg className="w-16 h-16 text-red-500" fill="currentColor" viewBox="0 0 24 24"><path d="M19 13H5v-2h14v2z"/></svg>
-              </div>
-              <p className="text-sm font-semibold text-zinc-500 uppercase tracking-wider mb-2">Compras del Período</p>
-              <h3 className="text-3xl font-black text-red-600 dark:text-red-400">Bs {parseFloat(financiero.egresos_mes).toLocaleString()}</h3>
-              <p className="text-xs text-zinc-400 mt-2">Gastos en inventario</p>
-            </div>
-
-            <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 border border-zinc-200 dark:border-zinc-800 shadow-sm relative overflow-hidden">
-               <div className="absolute top-0 right-0 p-4 opacity-10">
-                <svg className="w-16 h-16 text-blue-500" fill="currentColor" viewBox="0 0 24 24"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg>
-              </div>
-              <p className="text-sm font-semibold text-zinc-500 uppercase tracking-wider mb-2">Flujo Bruto (Período)</p>
-              <h3 className={`text-3xl font-black ${financiero.utilidad_bruta_mes >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-orange-600 dark:text-orange-400'}`}>
-                Bs {parseFloat(financiero.utilidad_bruta_mes).toLocaleString()}
-              </h3>
-              <p className="text-xs text-zinc-400 mt-2">Diferencia Ingresos - Egresos</p>
+        {/* Tendencia de ventas diarias */}
+        {ventasDiarias.length > 1 && listoParaGrafico && (
+          <div className="min-w-0 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm p-6">
+            <h3 className="font-bold text-lg text-zinc-900 dark:text-white mb-6 flex items-center gap-2">
+              <svg className="w-5 h-5 text-emerald-500 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+              </svg>
+              Evolución de Ventas del Período
+            </h3>
+            <div className="h-56">
+              <ResponsiveContainer width="99%" height={224}>
+                <AreaChart data={ventasDiarias} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                  <defs>
+                    <linearGradient id="colorVentas" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.35} />
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#3f3f46" opacity={0.2} />
+                  <XAxis dataKey="fecha" tickFormatter={(v) => new Date(v).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit' })} tick={{ fill: '#71717a', fontSize: 11 }} />
+                  <YAxis tick={{ fill: '#71717a', fontSize: 11 }} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#18181b', border: 'none', borderRadius: '8px', color: '#fff' }}
+                    labelFormatter={(v) => new Date(v).toLocaleDateString()}
+                    formatter={(value) => [fmtBs(value), 'Ventas']}
+                  />
+                  <Area type="monotone" dataKey="total_ingresos" stroke="#10b981" strokeWidth={2} fill="url(#colorVentas)" />
+                </AreaChart>
+              </ResponsiveContainer>
             </div>
           </div>
         )}

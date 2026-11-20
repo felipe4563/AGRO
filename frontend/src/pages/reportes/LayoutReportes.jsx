@@ -92,7 +92,7 @@ export default function LayoutReportes() {
       id: 'caja',
       label: 'Caja',
       component: <VistaCaja />,
-      visible: puede('caja', 'reportes')
+      visible: puede('caja', 'reportes') || puede('caja_flujo', 'reportes')
     }
   ];
 

@@ -165,8 +165,15 @@ export function ModalAbrirTurno({ cajas, onConfirm, onClose, guardando }) {
 }
 
 // ── Modal registrar gasto de caja ───────────────────────────────────────────
+const CATEGORIAS_GASTO = [
+  { value: 'VARIABLE', label: 'Costo variable' },
+  { value: 'FIJO', label: 'Costo fijo' },
+  { value: 'RETIRO', label: 'Retiro / fuera del negocio' },
+  { value: 'OTRO', label: 'Otros gastos' },
+];
+
 export function ModalGasto({ onConfirm, onClose, guardando }) {
-  const [form, setForm] = useState({ concepto: '', monto: '', metodo_pago: 'EFECTIVO', observaciones: '' });
+  const [form, setForm] = useState({ concepto: '', monto: '', categoria: 'VARIABLE', metodo_pago: 'EFECTIVO', observaciones: '' });
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const handleSubmit = (e) => {
@@ -206,6 +213,16 @@ export function ModalGasto({ onConfirm, onClose, guardando }) {
               className="w-full px-3 py-2 border border-zinc-200 dark:border-zinc-700 dark:bg-zinc-800 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-500"
               placeholder="0.00"
             />
+          </div>
+          <div>
+            <label className="text-xs text-zinc-500 block mb-1">Categoría</label>
+            <select
+              value={form.categoria}
+              onChange={e => set('categoria', e.target.value)}
+              className="w-full px-3 py-2 border border-zinc-200 dark:border-zinc-700 dark:bg-zinc-800 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+              {CATEGORIAS_GASTO.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+            </select>
           </div>
           <div>
             <label className="text-xs text-zinc-500 block mb-1">Método de pago</label>

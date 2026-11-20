@@ -13,6 +13,8 @@ const cajaService = {
   listarGastos:       (id_apertura) => api.get('/caja/gastos', { params: id_apertura ? { id_apertura } : {} }),
   registrarGasto:     (data) => api.post('/caja/gastos', data),
   obtenerLibroCaja:   (params) => api.get('/caja/libro', { params }),
+  listarConceptosGasto: () => api.get('/caja/gastos/conceptos'),
+  reclasificarConcepto: (data) => api.patch('/caja/gastos/clasificar', data),
 };
 
 export default cajaService;

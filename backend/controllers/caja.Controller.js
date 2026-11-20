@@ -183,13 +183,14 @@ const cerrarCaja = async (req, res) => {
       [req.user.id_sucursal, turno.fecha_apertura]
     );
     const [gastosRows] = await db.promise().query(
-      `SELECT COALESCE(SUM(monto), 0) as total_gastos FROM gasto_caja WHERE id_apertura = ? AND metodo_pago = 'EFECTIVO'`,
+      `SELECT COALESCE(SUM(CASE WHEN tipo = 'INGRESO' THEN monto ELSE -monto END), 0) as neto_gastos
+       FROM gasto_caja WHERE id_apertura = ? AND metodo_pago = 'EFECTIVO'`,
       [id]
     );
     const totalEfectivo = parseFloat(ventasRows[0].total_efectivo) || 0;
     const totalAbonosEfectivo = parseFloat(abonosRows[0].total_abonos) || 0;
-    const totalGastos = parseFloat(gastosRows[0].total_gastos) || 0;
-    const monto_esperado = parseFloat(turno.monto_inicial) + totalEfectivo + totalAbonosEfectivo - totalGastos;
+    const netoGastos = parseFloat(gastosRows[0].neto_gastos) || 0;
+    const monto_esperado = parseFloat(turno.monto_inicial) + totalEfectivo + totalAbonosEfectivo + netoGastos;
     const monto_final_num = parseFloat(monto_final) || 0;
     const diferencia = monto_final_num - monto_esperado;
 
@@ -210,12 +211,17 @@ const cerrarCaja = async (req, res) => {
 // ── Gastos de caja (imprevistos u otros egresos de efectivo durante el turno) ──
 const METODOS_PAGO = ['EFECTIVO', 'TRANSFERENCIA', 'QR', 'OTRO'];
 
+const TIPOS_MOVIMIENTO = ['INGRESO', 'EGRESO'];
+const CATEGORIAS_GASTO = ['VARIABLE', 'FIJO', 'RETIRO', 'OTRO'];
+
 const registrarGasto = async (req, res) => {
-  const { concepto, monto, metodo_pago, observaciones } = req.body ?? {};
+  const { concepto, monto, metodo_pago, observaciones, tipo, categoria, fecha_gasto } = req.body ?? {};
   if (!concepto || !concepto.trim()) return res.status(400).json({ error: 'El concepto del gasto es obligatorio' });
   const montoNum = parseFloat(monto);
   if (!montoNum || montoNum <= 0) return res.status(400).json({ error: 'El monto debe ser mayor a 0' });
   const metodoPagoNorm = METODOS_PAGO.includes(metodo_pago) ? metodo_pago : 'EFECTIVO';
+  const tipoNorm = TIPOS_MOVIMIENTO.includes(tipo) ? tipo : 'EGRESO';
+  const categoriaNorm = CATEGORIAS_GASTO.includes(categoria) ? categoria : 'OTRO';
 
   try {
     const [turnoRows] = await db.promise().query(
@@ -224,14 +230,54 @@ const registrarGasto = async (req, res) => {
     );
     const idApertura = turnoRows.length > 0 ? turnoRows[0].id_apertura : null;
     const [result] = await db.promise().query(
-      `INSERT INTO gasto_caja (id_apertura, id_sucursal, id_usuario, concepto, monto, metodo_pago, observaciones)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [idApertura, req.user.id_sucursal, req.user.id_usuario, concepto.trim(), montoNum, metodoPagoNorm, observaciones || null]
+      `INSERT INTO gasto_caja (id_apertura, id_sucursal, id_usuario, concepto, monto, tipo, categoria, metodo_pago, observaciones, fecha_gasto)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [idApertura, req.user.id_sucursal, req.user.id_usuario, concepto.trim(), montoNum, tipoNorm, categoriaNorm,
+       metodoPagoNorm, observaciones || null, fecha_gasto || new Date()]
     );
-    return res.status(201).json({ mensaje: 'Gasto registrado', id_gasto: result.insertId });
+    return res.status(201).json({ mensaje: 'Movimiento registrado', id_gasto: result.insertId });
   } catch (err) {
     console.error('[caja.registrarGasto]', err);
-    return res.status(500).json({ error: mensajeSeguro(err, 'Error al registrar el gasto') });
+    return res.status(500).json({ error: mensajeSeguro(err, 'Error al registrar el movimiento') });
+  }
+};
+
+// ── Clasificación de gastos por concepto (pantalla "Clasificar gastos") ──────
+const listarConceptosGasto = async (req, res) => {
+  try {
+    const [rows] = await db.promise().query(
+      `SELECT concepto,
+              MAX(categoria) as categoria_actual,
+              COUNT(*) as veces,
+              SUM(CASE WHEN tipo = 'EGRESO' THEN monto ELSE 0 END) as total_egresos,
+              MAX(fecha_gasto) as ultimo_uso
+       FROM gasto_caja
+       WHERE id_sucursal = ?
+       GROUP BY concepto
+       ORDER BY ultimo_uso DESC`,
+      [req.user.id_sucursal]
+    );
+    return res.json(rows);
+  } catch (err) {
+    console.error('[caja.listarConceptosGasto]', err);
+    return res.status(500).json({ error: 'Error al listar conceptos de gasto' });
+  }
+};
+
+const reclasificarConcepto = async (req, res) => {
+  const { concepto, categoria } = req.body ?? {};
+  if (!concepto || !concepto.trim()) return res.status(400).json({ error: 'El concepto es obligatorio' });
+  if (!CATEGORIAS_GASTO.includes(categoria)) return res.status(400).json({ error: 'Categoría inválida' });
+
+  try {
+    const [result] = await db.promise().query(
+      `UPDATE gasto_caja SET categoria = ? WHERE concepto = ? AND id_sucursal = ?`,
+      [categoria, concepto.trim(), req.user.id_sucursal]
+    );
+    return res.json({ mensaje: 'Concepto reclasificado', filas_actualizadas: result.affectedRows });
+  } catch (err) {
+    console.error('[caja.reclasificarConcepto]', err);
+    return res.status(500).json({ error: 'Error al reclasificar el concepto' });
   }
 };
 
@@ -359,10 +405,25 @@ const obtenerResumenTurno = async (req, res) => {
       [id]
     );
 
+    // Ventas anuladas durante el turno (por fecha de anulación, no de creación: una
+    // venta de un turno anterior anulada en este turno también afecta este arqueo).
+    const [ventasAnuladas] = await db.promise().query(
+      `SELECT v.id_venta, v.fecha_venta, v.fecha_anulacion, v.total, v.metodo_pago,
+              c.nombre AS cliente_nombre, c.apellido AS cliente_apellido,
+              u.nombre AS usuario_nombre, u.apellido AS usuario_apellido
+       FROM venta v
+       LEFT JOIN cliente c ON v.id_cliente = c.id_cliente
+       LEFT JOIN usuario u ON v.id_usuario_anulacion = u.id_usuario
+       WHERE v.id_sucursal = ? AND v.estado = 'ANULADA' AND v.fecha_anulacion BETWEEN ? AND ?
+       ORDER BY v.fecha_anulacion ASC`,
+      [turno.id_sucursal, desde, hasta]
+    );
+
     const totalVentas = ventasPorMetodo.reduce((acc, v) => acc + parseFloat(v.total), 0);
     const totalAbonos = abonosPorMetodo.reduce((acc, a) => acc + parseFloat(a.total), 0);
     const totalGastos = gastos.reduce((acc, g) => acc + parseFloat(g.monto), 0);
     const totalCreditosPendiente = creditosGenerados.reduce((acc, c) => acc + Math.max(0, parseFloat(c.saldo_pendiente)), 0);
+    const totalAnuladas = ventasAnuladas.reduce((acc, v) => acc + parseFloat(v.total), 0);
 
     return res.json({
       turno,
@@ -376,6 +437,8 @@ const obtenerResumenTurno = async (req, res) => {
       total_creditos_pendiente: totalCreditosPendiente,
       gastos,
       total_gastos: totalGastos,
+      ventas_anuladas: ventasAnuladas,
+      total_anuladas: totalAnuladas,
     });
   } catch (err) {
     console.error('[caja.obtenerResumenTurno]', err);
@@ -426,8 +489,8 @@ const obtenerLibroCaja = async (req, res) => {
 
         UNION ALL
 
-        SELECT g.fecha_gasto AS fecha, 'EGRESO' AS tipo, 'GASTO' AS origen,
-               CONCAT('Gasto: ', g.concepto) AS concepto, g.metodo_pago, g.monto AS monto
+        SELECT g.fecha_gasto AS fecha, g.tipo AS tipo, 'GASTO' AS origen,
+               CONCAT(IF(g.tipo = 'INGRESO', 'Movimiento: ', 'Gasto: '), g.concepto) AS concepto, g.metodo_pago, g.monto AS monto
         FROM gasto_caja g
         WHERE g.id_sucursal = ? AND g.fecha_gasto BETWEEN ? AND ?
 
@@ -480,4 +543,5 @@ const obtenerLibroCaja = async (req, res) => {
 module.exports = {
   listarCajas, crearCaja, editarCaja, toggleCaja, listarTurnos, obtenerTurnoActivo, abrirCaja, cerrarCaja,
   registrarGasto, listarGastos, obtenerResumenTurno, obtenerLibroCaja,
+  listarConceptosGasto, reclasificarConcepto,
 };

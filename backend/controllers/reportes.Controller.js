@@ -393,19 +393,33 @@ const obtenerResumenFinanciero = async (req, res) => {
     let ventaFechaParams = [];
     let compraFechaClause = '';
     let compraFechaParams = [];
+    let ventaFechaAnteriorClause = '';
+    let ventaFechaAnteriorParams = [];
+    let compraFechaAnteriorClause = '';
+    let compraFechaAnteriorParams = [];
 
     if (fechaInicio && fechaFin) {
       ventaFechaClause  = 'AND DATE(fecha_venta)  BETWEEN ? AND ?';
       ventaFechaParams  = [fechaInicio, fechaFin];
       compraFechaClause = 'AND DATE(fecha_compra) BETWEEN ? AND ?';
       compraFechaParams = [fechaInicio, fechaFin];
+
+      // Período anterior equivalente, de la misma duración, inmediatamente antes del rango elegido.
+      ventaFechaAnteriorClause  = 'AND DATE(fecha_venta)  BETWEEN DATE_SUB(?, INTERVAL DATEDIFF(?, ?) + 1 DAY) AND DATE_SUB(?, INTERVAL 1 DAY)';
+      ventaFechaAnteriorParams  = [fechaInicio, fechaFin, fechaInicio, fechaInicio];
+      compraFechaAnteriorClause = 'AND DATE(fecha_compra) BETWEEN DATE_SUB(?, INTERVAL DATEDIFF(?, ?) + 1 DAY) AND DATE_SUB(?, INTERVAL 1 DAY)';
+      compraFechaAnteriorParams = [fechaInicio, fechaFin, fechaInicio, fechaInicio];
     } else {
       ventaFechaClause  = 'AND MONTH(fecha_venta)  = MONTH(CURDATE()) AND YEAR(fecha_venta)  = YEAR(CURDATE())';
       compraFechaClause = 'AND MONTH(fecha_compra) = MONTH(CURDATE()) AND YEAR(fecha_compra) = YEAR(CURDATE())';
+
+      // Mes calendario anterior al actual.
+      ventaFechaAnteriorClause  = 'AND MONTH(fecha_venta)  = MONTH(DATE_SUB(CURDATE(), INTERVAL 1 MONTH)) AND YEAR(fecha_venta)  = YEAR(DATE_SUB(CURDATE(), INTERVAL 1 MONTH))';
+      compraFechaAnteriorClause = 'AND MONTH(fecha_compra) = MONTH(DATE_SUB(CURDATE(), INTERVAL 1 MONTH)) AND YEAR(fecha_compra) = YEAR(DATE_SUB(CURDATE(), INTERVAL 1 MONTH))';
     }
 
     const [ventasRows] = await db.promise().query(
-      `SELECT COALESCE(SUM(total), 0) as total_ventas
+      `SELECT COUNT(*) as cantidad_ventas, COALESCE(SUM(total), 0) as total_ventas
        FROM venta WHERE estado = 'COMPLETADA' AND id_sucursal = ? ${ventaFechaClause}`,
       [sucursalId, ...ventaFechaParams]
     );
@@ -416,18 +430,76 @@ const obtenerResumenFinanciero = async (req, res) => {
       [sucursalId, ...compraFechaParams]
     );
 
+    const [ventasAnteriorRows] = await db.promise().query(
+      `SELECT COALESCE(SUM(total), 0) as total_ventas
+       FROM venta WHERE estado = 'COMPLETADA' AND id_sucursal = ? ${ventaFechaAnteriorClause}`,
+      [sucursalId, ...ventaFechaAnteriorParams]
+    );
+
+    const [comprasAnteriorRows] = await db.promise().query(
+      `SELECT COALESCE(SUM(total), 0) as total_compras
+       FROM compra WHERE estado != 'CANCELADO' AND id_sucursal = ? ${compraFechaAnteriorClause}`,
+      [sucursalId, ...compraFechaAnteriorParams]
+    );
+
     const [ventasHoyRows] = await db.promise().query(
       `SELECT COUNT(*) as cantidad_ventas_hoy, COALESCE(SUM(total), 0) as ingresos_hoy
        FROM venta WHERE estado = 'COMPLETADA' AND id_sucursal = ? AND DATE(fecha_venta) = CURDATE()`,
       [sucursalId]
     );
 
+    const [porCobrarRows] = await db.promise().query(
+      `SELECT COALESCE(SUM(v.total - v.monto_pagado - COALESCE(pc.total_abonado, 0)), 0) as total_por_cobrar
+       FROM venta v
+       LEFT JOIN (
+         SELECT id_venta, SUM(monto) AS total_abonado FROM pago_credito GROUP BY id_venta
+       ) pc ON pc.id_venta = v.id_venta
+       WHERE v.metodo_pago = 'CREDITO' AND v.estado = 'COMPLETADA' AND v.id_sucursal = ?`,
+      [sucursalId]
+    );
+
+    const [porPagarRows] = await db.promise().query(
+      `SELECT COALESCE(SUM(c.total - c.monto_pagado - COALESCE(pp.total_abonado, 0)), 0) as total_por_pagar
+       FROM compra c
+       LEFT JOIN (
+         SELECT id_compra, SUM(monto) AS total_abonado FROM pago_proveedor GROUP BY id_compra
+       ) pp ON pp.id_compra = c.id_compra
+       WHERE c.metodo_pago = 'CREDITO' AND c.estado != 'CANCELADO' AND c.id_sucursal = ?`,
+      [sucursalId]
+    );
+
+    const [stockBajoRows] = await db.promise().query(
+      `SELECT COUNT(DISTINCT p.id_producto) as cantidad
+       FROM lote l
+       JOIN producto p ON l.id_producto = p.id_producto
+       WHERE l.activo = 1 AND l.id_sucursal = ? AND p.stock_minimo > 0 AND l.stock_unidades < p.stock_minimo`,
+      [sucursalId]
+    );
+
+    const totalVentas = parseFloat(ventasRows[0].total_ventas);
+    const totalCompras = parseFloat(comprasRows[0].total_compras);
+    const totalVentasAnterior = parseFloat(ventasAnteriorRows[0].total_ventas);
+    const totalComprasAnterior = parseFloat(comprasAnteriorRows[0].total_compras);
+    const cantidadVentas = ventasRows[0].cantidad_ventas;
+
+    const variacion = (actual, anterior) => {
+      if (anterior <= 0) return actual > 0 ? 100 : 0;
+      return ((actual - anterior) / anterior) * 100;
+    };
+
     return res.json({
-      ingresos_mes:        ventasRows[0].total_ventas,
-      egresos_mes:         comprasRows[0].total_compras,
-      utilidad_bruta_mes:  ventasRows[0].total_ventas - comprasRows[0].total_compras,
-      ventas_hoy_cantidad: ventasHoyRows[0].cantidad_ventas_hoy,
-      ingresos_hoy:        ventasHoyRows[0].ingresos_hoy
+      ingresos_mes:         totalVentas,
+      egresos_mes:          totalCompras,
+      utilidad_bruta_mes:   totalVentas - totalCompras,
+      ventas_hoy_cantidad:  ventasHoyRows[0].cantidad_ventas_hoy,
+      ingresos_hoy:         ventasHoyRows[0].ingresos_hoy,
+      cantidad_ventas:      cantidadVentas,
+      ticket_promedio:      cantidadVentas > 0 ? totalVentas / cantidadVentas : 0,
+      variacion_ventas:     variacion(totalVentas, totalVentasAnterior),
+      variacion_compras:    variacion(totalCompras, totalComprasAnterior),
+      total_por_cobrar:     porCobrarRows[0].total_por_cobrar,
+      total_por_pagar:      porPagarRows[0].total_por_pagar,
+      productos_stock_bajo: stockBajoRows[0].cantidad
     });
   } catch (err) {
     return res.status(500).json({ error: mensajeSeguro(err, 'Error al obtener el resumen del dashboard') });
@@ -669,6 +741,205 @@ const obtenerReporteCaja = async (req, res) => {
   }
 };
 
+// Flujo de caja detallado de un mes, estilo planilla (días en columnas,
+// categorías en filas, expandibles): ingresos (ventas + cobros de crédito +
+// ingresos manuales) vs egresos categorizados (Costo variable, Costo fijo,
+// Otros gastos, Retiros y fuera del negocio), desglosados en Efectivo/Digital,
+// con saldo al empezar/cerrar cada día. Inspirado en bd/Flujodecaja.xlsx.
+const obtenerFlujoCaja = async (req, res) => {
+  const id_sucursal = req.user?.id_sucursal;
+  const ahora = new Date();
+  const mesParam = /^\d{4}-\d{2}$/.test(req.query.mes || '') ? req.query.mes : null;
+  const anio = mesParam ? parseInt(mesParam.slice(0, 4)) : ahora.getUTCFullYear();
+  const mes = mesParam ? parseInt(mesParam.slice(5, 7)) : ahora.getUTCMonth() + 1;
+
+  const primerDia = `${anio}-${String(mes).padStart(2, '0')}-01`;
+  const ultimoDiaNum = new Date(Date.UTC(anio, mes, 0)).getUTCDate();
+  const ultimoDia = `${anio}-${String(mes).padStart(2, '0')}-${String(ultimoDiaNum).padStart(2, '0')}`;
+
+  // EFECTIVO queda aparte; TRANSFERENCIA/QR/OTRO se agrupan como "digital".
+  const grupoMetodo = `CASE WHEN metodo_pago = 'EFECTIVO' THEN 'efectivo' ELSE 'digital' END`;
+
+  try {
+    const [ventasRows] = await db.promise().query(
+      `SELECT DATE_FORMAT(fecha_venta, '%Y-%m-%d') AS fecha, ${grupoMetodo} AS grupo, SUM(total) AS monto
+       FROM venta
+       WHERE id_sucursal = ? AND estado = 'COMPLETADA' AND metodo_pago != 'CREDITO'
+         AND fecha_venta >= ? AND fecha_venta < ? + INTERVAL 1 DAY
+       GROUP BY fecha, grupo`,
+      [id_sucursal, primerDia, ultimoDia]
+    );
+    const [cobrosRows] = await db.promise().query(
+      `SELECT DATE_FORMAT(fecha_pago, '%Y-%m-%d') AS fecha, ${grupoMetodo} AS grupo, SUM(monto) AS monto
+       FROM pago_credito
+       WHERE id_sucursal = ? AND fecha_pago >= ? AND fecha_pago < ? + INTERVAL 1 DAY
+       GROUP BY fecha, grupo`,
+      [id_sucursal, primerDia, ultimoDia]
+    );
+    const [comprasRows] = await db.promise().query(
+      `SELECT DATE_FORMAT(fecha_compra, '%Y-%m-%d') AS fecha, ${grupoMetodo} AS grupo, SUM(total) AS monto
+       FROM compra
+       WHERE id_sucursal = ? AND estado != 'ANULADA' AND metodo_pago != 'CREDITO'
+         AND fecha_compra BETWEEN ? AND ?
+       GROUP BY fecha, grupo`,
+      [id_sucursal, primerDia, ultimoDia]
+    );
+    const [pagosProvRows] = await db.promise().query(
+      `SELECT DATE_FORMAT(fecha_pago, '%Y-%m-%d') AS fecha, ${grupoMetodo} AS grupo, SUM(monto) AS monto
+       FROM pago_proveedor
+       WHERE id_sucursal = ? AND fecha_pago >= ? AND fecha_pago < ? + INTERVAL 1 DAY
+       GROUP BY fecha, grupo`,
+      [id_sucursal, primerDia, ultimoDia]
+    );
+    const [gastosRows] = await db.promise().query(
+      `SELECT DATE_FORMAT(fecha_gasto, '%Y-%m-%d') AS fecha, ${grupoMetodo} AS grupo, tipo, categoria, concepto, SUM(monto) AS monto
+       FROM gasto_caja
+       WHERE id_sucursal = ? AND fecha_gasto >= ? AND fecha_gasto < ? + INTERVAL 1 DAY
+       GROUP BY fecha, grupo, tipo, categoria, concepto`,
+      [id_sucursal, primerDia, ultimoDia]
+    );
+
+    // ── Saldo antes del mes (acumulado de toda la historia previa) ──────
+    const [saldoPrevioRows] = await db.promise().query(
+      `SELECT grupo, SUM(monto) AS monto FROM (
+         SELECT ${grupoMetodo} AS grupo, total AS monto FROM venta
+           WHERE id_sucursal = ? AND estado = 'COMPLETADA' AND metodo_pago != 'CREDITO' AND fecha_venta < ?
+         UNION ALL
+         SELECT ${grupoMetodo} AS grupo, monto FROM pago_credito WHERE id_sucursal = ? AND fecha_pago < ?
+         UNION ALL
+         SELECT ${grupoMetodo} AS grupo, -total AS monto FROM compra
+           WHERE id_sucursal = ? AND estado != 'ANULADA' AND metodo_pago != 'CREDITO' AND fecha_compra < ?
+         UNION ALL
+         SELECT ${grupoMetodo} AS grupo, -monto AS monto FROM pago_proveedor WHERE id_sucursal = ? AND fecha_pago < ?
+         UNION ALL
+         SELECT ${grupoMetodo} AS grupo, (CASE WHEN tipo = 'INGRESO' THEN monto ELSE -monto END) AS monto
+           FROM gasto_caja WHERE id_sucursal = ? AND fecha_gasto < ?
+       ) previo
+       GROUP BY grupo`,
+      [id_sucursal, primerDia, id_sucursal, primerDia, id_sucursal, primerDia, id_sucursal, primerDia, id_sucursal, primerDia]
+    );
+    const saldoInicial = { efectivo: 0, digital: 0 };
+    saldoPrevioRows.forEach((r) => { saldoInicial[r.grupo] += parseFloat(r.monto) || 0; });
+
+    // ── Arma los días del mes completo ───────────────────────────────────
+    const dias = [];
+    for (let d = 1; d <= ultimoDiaNum; d++) dias.push(`${anio}-${String(mes).padStart(2, '0')}-${String(d).padStart(2, '0')}`);
+
+    const vacioDia = () => ({ efectivo: 0, digital: 0 });
+    const nuevaFila = (id, label, auto = false) => ({ id, label, auto, dias: Object.fromEntries(dias.map(f => [f, vacioDia()])), mes: vacioDia() });
+    const sumar = (fila, fecha, grupo, monto) => {
+      if (!fila.dias[fecha]) return;
+      fila.dias[fecha][grupo] += monto;
+      fila.mes[grupo] += monto;
+    };
+
+    const filaVentas = nuevaFila('ventas', 'Ventas', true);
+    const filaCobros = nuevaFila('cobros_credito', 'Cobros de crédito', true);
+    const filaCompras = nuevaFila('compras', 'Compras', true);
+    const filaPagosProv = nuevaFila('pagos_proveedor', 'Pagos a proveedores', true);
+    ventasRows.forEach(r => sumar(filaVentas, r.fecha, r.grupo, parseFloat(r.monto) || 0));
+    cobrosRows.forEach(r => sumar(filaCobros, r.fecha, r.grupo, parseFloat(r.monto) || 0));
+    comprasRows.forEach(r => sumar(filaCompras, r.fecha, r.grupo, parseFloat(r.monto) || 0));
+    pagosProvRows.forEach(r => sumar(filaPagosProv, r.fecha, r.grupo, parseFloat(r.monto) || 0));
+
+    // Filas manuales (una por concepto distinto), separadas en 4 baldes:
+    // ingresos manuales, costo variable, costo fijo, otros gastos, retiros.
+    const filasPorConcepto = {}; // key: `${balde}::${concepto}`
+    const obtenerFilaConcepto = (balde, concepto) => {
+      const key = `${balde}::${concepto}`;
+      if (!filasPorConcepto[key]) filasPorConcepto[key] = nuevaFila(`gasto::${key}`, concepto, false);
+      return filasPorConcepto[key];
+    };
+    const baldeDe = (tipo, categoria) => {
+      if (tipo === 'INGRESO') return 'ingresos';
+      return { VARIABLE: 'variable', FIJO: 'fijo', RETIRO: 'retiros', OTRO: 'otros' }[categoria] || 'otros';
+    };
+    gastosRows.forEach(r => {
+      const balde = baldeDe(r.tipo, r.categoria);
+      const fila = obtenerFilaConcepto(balde, r.concepto);
+      sumar(fila, r.fecha, r.grupo, parseFloat(r.monto) || 0);
+    });
+    const filasDeBalde = (balde) => Object.entries(filasPorConcepto)
+      .filter(([key]) => key.startsWith(`${balde}::`))
+      .map(([, fila]) => fila)
+      .sort((a, b) => (b.mes.efectivo + b.mes.digital) - (a.mes.efectivo + a.mes.digital));
+
+    const sumarFilas = (filas) => {
+      const total = vacioDia();
+      const porDia = Object.fromEntries(dias.map(f => [f, vacioDia()]));
+      filas.forEach(f => {
+        total.efectivo += f.mes.efectivo; total.digital += f.mes.digital;
+        dias.forEach(fecha => { porDia[fecha].efectivo += f.dias[fecha].efectivo; porDia[fecha].digital += f.dias[fecha].digital; });
+      });
+      return { total, porDia };
+    };
+
+    const armarGrupo = (id, label, filas) => {
+      const { total, porDia } = sumarFilas(filas);
+      return { id, label, filas, mes: total, dias: porDia };
+    };
+
+    const grupoIngresos = armarGrupo('ingresos', '(+) Ingresos', [filaVentas, filaCobros, ...filasDeBalde('ingresos')]);
+    const grupoVariable = armarGrupo('variable', '(-) Costo variable', [filaCompras, filaPagosProv, ...filasDeBalde('variable')]);
+    const grupoFijo = armarGrupo('fijo', '(-) Costo fijo', filasDeBalde('fijo'));
+    const grupoOtros = armarGrupo('otros', '(-) Otros gastos', filasDeBalde('otros'));
+    const grupoRetiros = armarGrupo('retiros', '(-) Retiros y fuera del negocio', filasDeBalde('retiros'));
+
+    // ── Saldo al empezar/cerrar cada día (para la primera fila y el gráfico) ──
+    const saldoPorDia = {};
+    let corrEfectivo = saldoInicial.efectivo, corrDigital = saldoInicial.digital;
+    const saldoInicioDias = {};
+    dias.forEach((fecha) => {
+      saldoInicioDias[fecha] = { efectivo: corrEfectivo, digital: corrDigital };
+      const netoDiaEfectivo = grupoIngresos.dias[fecha].efectivo - grupoVariable.dias[fecha].efectivo
+        - grupoFijo.dias[fecha].efectivo - grupoOtros.dias[fecha].efectivo - grupoRetiros.dias[fecha].efectivo;
+      const netoDiaDigital = grupoIngresos.dias[fecha].digital - grupoVariable.dias[fecha].digital
+        - grupoFijo.dias[fecha].digital - grupoOtros.dias[fecha].digital - grupoRetiros.dias[fecha].digital;
+      corrEfectivo += netoDiaEfectivo;
+      corrDigital += netoDiaDigital;
+      saldoPorDia[fecha] = { efectivo: corrEfectivo, digital: corrDigital };
+    });
+
+    const filaSaldoInicio = { id: 'saldo_inicio', label: 'Saldo al empezar el día', dias: saldoInicioDias, mes: saldoInicial };
+
+    const serie = dias.map((fecha) => ({ fecha, efectivo: saldoPorDia[fecha].efectivo, digital: saldoPorDia[fecha].digital }));
+
+    // ── Tarjetas resumen ──────────────────────────────────────────────────
+    const gastosOperacion = {
+      efectivo: grupoVariable.mes.efectivo + grupoFijo.mes.efectivo + grupoOtros.mes.efectivo,
+      digital: grupoVariable.mes.digital + grupoFijo.mes.digital + grupoOtros.mes.digital,
+    };
+    const todasLasFilasDeGasto = [filaCompras, filaPagosProv, ...filasDeBalde('variable'), ...filasDeBalde('fijo'), ...filasDeBalde('otros')];
+    let mayor = null;
+    todasLasFilasDeGasto.forEach((f) => {
+      const total = f.mes.efectivo + f.mes.digital;
+      if (total > 0 && (!mayor || total > mayor.total)) mayor = { concepto: f.label, total };
+    });
+    const saldoFinal = saldoPorDia[dias[dias.length - 1]] || saldoInicial;
+
+    const tarjetas = {
+      saldo_empezar: saldoInicial,
+      entro: grupoIngresos.mes,
+      gastos_operacion: { ...gastosOperacion, mayor_concepto: mayor?.concepto || null },
+      retiros: grupoRetiros.mes,
+      saldo_hoy: saldoFinal,
+    };
+
+    return res.json({
+      mes: `${anio}-${String(mes).padStart(2, '0')}`,
+      dias,
+      saldo_inicial: saldoInicial,
+      tarjetas,
+      serie,
+      filas_saldo: filaSaldoInicio,
+      grupos: [grupoIngresos, grupoVariable, grupoFijo, grupoOtros, grupoRetiros],
+    });
+  } catch (err) {
+    console.error('Error en obtenerFlujoCaja:', err);
+    return res.status(500).json({ error: 'Error interno al generar el flujo de caja.' });
+  }
+};
+
 module.exports = {
   obtenerReporteVentas,
   obtenerReporteCompras,
@@ -679,5 +950,6 @@ module.exports = {
   obtenerReporteGananciasProducto,
   obtenerReporteTraslados,
   obtenerReporteComparativoSucursales,
-  obtenerReporteCaja
+  obtenerReporteCaja,
+  obtenerFlujoCaja
 };

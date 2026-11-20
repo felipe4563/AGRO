@@ -69,5 +69,6 @@ router.get('/sucursales/comparativo', checkPermission('comparativo_sucursales','
 // RUTAS DE CAJA
 // ==========================================
 router.get('/caja', checkPermission('caja', 'reportes'), ctrl.obtenerReporteCaja);
+router.get('/caja/flujo', checkPermission('caja_flujo', 'reportes'), ctrl.obtenerFlujoCaja);
 
 module.exports = router;

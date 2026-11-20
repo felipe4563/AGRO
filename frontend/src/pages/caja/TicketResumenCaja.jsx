@@ -36,7 +36,8 @@ export default function TicketResumenCaja() {
 
   const { turno, ventas_por_metodo, total_ventas, productos_vendidos,
           abonos_por_metodo, total_abonos, abonos_detalle,
-          creditos_generados, total_creditos_pendiente, gastos, total_gastos } = resumen;
+          creditos_generados, total_creditos_pendiente, gastos, total_gastos,
+          ventas_anuladas, total_anuladas } = resumen;
 
   const cerrado = turno.estado === 'CERRADA';
 
@@ -62,6 +63,15 @@ export default function TicketResumenCaja() {
     L.push('PRODUCTOS VENDIDOS');
     if (productos_vendidos.length === 0) L.push('  Sin productos vendidos en este turno');
     productos_vendidos.forEach((p) => L.push(fila(`  ${p.cantidad}x ${p.producto_nombre}`, `Bs ${fmt(p.subtotal)}`)));
+    L.push(linea());
+
+    L.push('VENTAS ANULADAS EN EL TURNO');
+    if (ventas_anuladas.length === 0) L.push('  Ninguna en este turno');
+    ventas_anuladas.forEach((v) => {
+      const cliente = v.cliente_nombre ? `${v.cliente_nombre} ${v.cliente_apellido || ''}`.trim() : 'Consumidor Final';
+      L.push(fila(`  #${v.id_venta.toString().padStart(5, '0')} ${cliente} (${METODO_LABEL[v.metodo_pago] || v.metodo_pago})`, `Bs ${fmt(v.total)}`));
+    });
+    L.push(fila('TOTAL ANULADO', `Bs ${fmt(total_anuladas)}`));
     L.push(linea());
 
     L.push('ABONOS A CREDITO (COBROS)');
@@ -198,6 +208,28 @@ export default function TicketResumenCaja() {
                 <span style={{ whiteSpace: 'nowrap' }}>Bs {fmt(p.subtotal)}</span>
               </div>
             ))}
+          </div>
+
+          <div style={sep} />
+
+          <div style={{ marginBottom: '4px' }}>
+            <div style={{ ...tituloSeccion, color: ventas_anuladas.length > 0 ? '#c00' : undefined }}>VENTAS ANULADAS EN EL TURNO</div>
+            {ventas_anuladas.length === 0 ? (
+              <p style={{ fontStyle: 'italic' }}>Ninguna en este turno</p>
+            ) : ventas_anuladas.map((v) => (
+              <div key={v.id_venta} style={row}>
+                <span>
+                  #{v.id_venta.toString().padStart(5, '0')} {v.cliente_nombre ? `${v.cliente_nombre} ${v.cliente_apellido || ''}` : 'Consumidor Final'}
+                  <span style={{ fontSize: '9px', color: '#666' }}> ({METODO_LABEL[v.metodo_pago] || v.metodo_pago})</span>
+                </span>
+                <span style={{ whiteSpace: 'nowrap' }}>Bs {fmt(v.total)}</span>
+              </div>
+            ))}
+            {ventas_anuladas.length > 0 && (
+              <div style={{ ...row, fontWeight: 'bold', marginTop: '2px', color: '#c00' }}>
+                <span>TOTAL ANULADO</span><span>Bs {fmt(total_anuladas)}</span>
+              </div>
+            )}
           </div>
 
           <div style={sep} />

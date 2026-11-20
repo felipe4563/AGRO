@@ -107,4 +107,16 @@ describe('Reportes - Caja', () => {
     const res = await request(app).get(`${BASE}/caja`).set(headers);
     expect([200, 403]).toContain(res.status);
   });
+
+  test('GET /caja/flujo → 200 o 403', async () => {
+    const res = await request(app).get(`${BASE}/caja/flujo`).set(headers);
+    expect([200, 403]).toContain(res.status);
+    if (res.status === 200) {
+      expect(Array.isArray(res.body.dias)).toBe(true);
+      expect(res.body.tarjetas).toHaveProperty('saldo_hoy');
+      expect(Array.isArray(res.body.grupos)).toBe(true);
+      expect(res.body.grupos.map(g => g.id)).toEqual(['ingresos', 'variable', 'fijo', 'otros', 'retiros']);
+      expect(Array.isArray(res.body.serie)).toBe(true);
+    }
+  });
 });

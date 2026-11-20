@@ -1,8 +1,10 @@
 import { useState } from 'react';
+import { usePermission } from '../../../hooks/usePermission';
 import reporteService from '../../../services/reporte.service';
 import FiltrosAvanzados from '../components/FiltrosAvanzados';
 import TablaReporte from '../components/TablaReporte';
 import BotonesExportar from '../components/BotonesExportar';
+import VistaFlujoCaja from './flujoCaja/VistaFlujoCaja';
 
 function DiferenciaBadge({ valor }) {
   const num = parseFloat(valor || 0);
@@ -11,10 +13,10 @@ function DiferenciaBadge({ valor }) {
   return             <span className="px-2 py-0.5 text-xs font-bold rounded bg-red-100 text-red-700">{num.toFixed(2)}</span>;
 }
 
-const COLUMNAS = [
+const COLUMNAS_ARQUEOS = [
   { key: 'caja_nombre', header: 'Caja' },
   { key: 'cajero_nombre', header: 'Cajero', render: (_, r) => `${r.cajero_nombre} ${r.cajero_apellido}`, excelValue: r => `${r.cajero_nombre} ${r.cajero_apellido}` },
-  { key: 'fecha_apertura', header: 'Apertura', excelValue: r => new Date(r.fecha_apertura).toLocaleString() },
+  { key: 'fecha_apertura', header: 'Apertura', render: v => new Date(v).toLocaleString(), excelValue: r => new Date(r.fecha_apertura).toLocaleString() },
   { key: 'fecha_cierre', header: 'Cierre', render: v => v ? new Date(v).toLocaleString() : '—', excelValue: r => r.fecha_cierre ? new Date(r.fecha_cierre).toLocaleString() : 'Abierto' },
   { key: 'monto_inicial', header: 'Inicial (Bs)', align: 'right', render: v => parseFloat(v).toFixed(2), excelValue: r => parseFloat(r.monto_inicial) },
   { key: 'monto_esperado', header: 'Esperado (Bs)', align: 'right', render: v => v != null ? parseFloat(v).toFixed(2) : '—', excelValue: r => r.monto_esperado != null ? parseFloat(r.monto_esperado) : '' },
@@ -25,7 +27,7 @@ const COLUMNAS = [
   ), excelValue: r => r.estado }
 ];
 
-export default function VistaCaja() {
+function VistaArqueos() {
   const [datos, setDatos] = useState([]);
   const [resumen, setResumen] = useState(null);
   const [filtros, setFiltros] = useState({});
@@ -78,18 +80,56 @@ export default function VistaCaja() {
             </div>
           )}
         </div>
-        <BotonesExportar 
-          datos={datos} 
-          columnas={COLUMNAS} 
-          titulo="Reporte_Arqueos_Caja" 
+        <BotonesExportar
+          datos={datos}
+          columnas={COLUMNAS_ARQUEOS}
+          titulo="Reporte_Arqueos_Caja"
           resumen={resumen}
           subtitulo={`Filtros aplicados: ${filtros.fechaInicio ? `Desde ${filtros.fechaInicio} Hasta ${filtros.fechaFin}` : 'Todos los tiempos'}`}
         />
       </div>
 
       <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
-        <TablaReporte columnas={COLUMNAS} datos={datos} cargando={cargando} />
+        <TablaReporte columnas={COLUMNAS_ARQUEOS} datos={datos} cargando={cargando} />
       </div>
+    </div>
+  );
+}
+
+export default function VistaCaja() {
+  const { puede } = usePermission();
+
+  const SUB_TABS = [
+    { id: 'flujo', label: 'Flujo de Caja', permiso: 'caja_flujo' },
+    { id: 'arqueos', label: 'Arqueos', permiso: 'caja' },
+  ];
+  const tabsPermitidos = SUB_TABS.filter(t => puede(t.permiso, 'reportes'));
+  const [activeTab, setActiveTab] = useState(tabsPermitidos.length > 0 ? tabsPermitidos[0].id : null);
+
+  if (tabsPermitidos.length === 0) return null;
+
+  return (
+    <div className="space-y-4">
+      {tabsPermitidos.length > 1 && (
+        <div className="flex gap-2 border-b border-zinc-200 dark:border-zinc-800">
+          {tabsPermitidos.map(t => (
+            <button
+              key={t.id}
+              onClick={() => setActiveTab(t.id)}
+              className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-[1px] transition-colors ${
+                activeTab === t.id
+                  ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400'
+                  : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {activeTab === 'flujo' && <VistaFlujoCaja />}
+      {activeTab === 'arqueos' && <VistaArqueos />}
     </div>
   );
 }
