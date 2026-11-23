@@ -87,7 +87,7 @@ function KpiCard({ label, value, prefix = '', icon, colorKey = 'emerald', cargan
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-widest
-                        text-zinc-400 dark:text-zinc-500 mb-1.5">
+                        text-zinc-500 dark:text-zinc-400 mb-1.5">
             {label}
           </p>
           {cargando ? (
@@ -95,13 +95,13 @@ function KpiCard({ label, value, prefix = '', icon, colorKey = 'emerald', cargan
           ) : (
             <p className="text-2xl font-black text-zinc-900 dark:text-white leading-none">
               {prefix && (
-                <span className="text-sm font-semibold text-zinc-400 mr-1">{prefix}</span>
+                <span className="text-sm font-semibold text-zinc-500 dark:text-zinc-400 mr-1">{prefix}</span>
               )}
               {value}
             </p>
           )}
           {!cargando && sub && (
-            <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1.5">{sub}</p>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1.5">{sub}</p>
           )}
         </div>
         {/* icon bubble */}
@@ -126,7 +126,7 @@ function BarProducto({ nombre, valor, max, rank }) {
   const color = BAR_COLORS[rank % BAR_COLORS.length];
   return (
     <div className="flex items-center gap-3 group">
-      <span className="text-[11px] font-bold text-zinc-400 w-4 text-right shrink-0">
+      <span className="text-[11px] font-bold text-zinc-500 dark:text-zinc-400 w-4 text-right shrink-0">
         {rank + 1}
       </span>
       <div className="flex-1 min-w-0">
@@ -173,7 +173,7 @@ function AlertRow({ nombre, sub, badge }) {
                     border border-zinc-100 dark:border-zinc-800">
       <div className="min-w-0 flex-1">
         <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 truncate">{nombre}</p>
-        <p className="text-[11px] text-zinc-400">{sub}</p>
+        <p className="text-[11px] text-zinc-500 dark:text-zinc-400">{sub}</p>
       </div>
       {badge}
     </div>
@@ -199,7 +199,7 @@ function Empty({ icon, msg }) {
   return (
     <div className="flex flex-col items-center justify-center py-8 gap-2">
       <span className="text-3xl opacity-40">{icon}</span>
-      <p className="text-xs text-zinc-400 text-center">{msg}</p>
+      <p className="text-xs text-zinc-500 dark:text-zinc-400 text-center">{msg}</p>
     </div>
   );
 }
@@ -225,7 +225,7 @@ function QuickBtn({ to, icon, label, desc, onClick }) {
                       group-hover:text-yellow-600 dark:group-hover:text-yellow-400 truncate">
           {label}
         </p>
-        <p className="text-[11px] text-zinc-400 truncate">{desc}</p>
+        <p className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate">{desc}</p>
       </div>
     </button>
   );
@@ -413,13 +413,13 @@ export default function Dashboard() {
                         flex flex-col sm:flex-row sm:items-center gap-4">
           <div className="flex-1 min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-widest
-                          text-zinc-400 dark:text-zinc-500 mb-0.5">
+                          text-zinc-500 dark:text-zinc-400 mb-0.5">
               {saludoHora()}
             </p>
             <h1 className="text-2xl font-black text-zinc-900 dark:text-white truncate">
               {usuario?.nombre} {usuario?.apellido}
             </h1>
-            <p className="text-sm text-zinc-400 dark:text-zinc-500 capitalize mt-0.5">
+            <p className="text-sm text-zinc-500 dark:text-zinc-400 capitalize mt-0.5">
               {fechaLarga()}
             </p>
           </div>
@@ -427,7 +427,7 @@ export default function Dashboard() {
           {/* Info usuario */}
           <div className="flex items-center gap-3 shrink-0">
             <div className="hidden sm:flex flex-col items-end">
-              <span className="text-[11px] text-zinc-400 uppercase tracking-wide">Rol</span>
+              <span className="text-[11px] text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Rol</span>
               <span className="text-sm font-bold text-zinc-700 dark:text-zinc-300">
                 {usuario?.rol_nombre ?? `Rol ${usuario?.rol}`}
               </span>
@@ -491,7 +491,7 @@ export default function Dashboard() {
             {pTop && (
               <Panel
                 title={<span className="flex items-center gap-1.5"><Ic name="trophy" className="w-4 h-4" />Top Productos</span>}
-                badge={<span className="text-xs text-zinc-400">ingresos totales</span>}
+                badge={<span className="text-xs text-zinc-500 dark:text-zinc-400">ingresos totales</span>}
                 className={pVenc || pStockBajo ? 'xl:col-span-2' : ''}
               >
                 {ldTop ? (
@@ -611,7 +611,7 @@ export default function Dashboard() {
             <h2 className="text-lg font-bold text-zinc-800 dark:text-white mb-1">
               Bienvenido a SIS-AGRO
             </h2>
-            <p className="text-sm text-zinc-400 max-w-xs">
+            <p className="text-sm text-zinc-500 dark:text-zinc-400 max-w-xs">
               Usa el menú lateral para acceder a los módulos disponibles para tu rol.
             </p>
           </div>

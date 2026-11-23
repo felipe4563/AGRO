@@ -7,6 +7,7 @@ import { ConfiguracionProvider } from './contexts/ConfiguracionContext';
 import ProtectedRoute      from './components/ProtectedRoute';
 import Sidebar             from './components/sidebar';
 import Topbar              from './components/Topbar';
+import ActualizarApp       from './components/ActualizarApp';
 
 // ── Pages ────────────────────────────────────────────────────────────────
 import Login        from './pages/Login';
@@ -126,6 +127,7 @@ export default function App() {
       <ConfiguracionProvider>
       <AuthProvider>
         <AbilityProvider>
+          <ActualizarApp />
           <Routes>
 
             {/* ── Rutas públicas ──────────────────────────────────────── */}

@@ -8,7 +8,11 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // 'prompt': no reemplaza el service worker solo en caliente (podría
+      // cortar una venta a mitad de operación) — en vez de eso deja
+      // needRefresh=true para que ActualizarApp.jsx muestre el botón
+      // flotante y el usuario decida cuándo recargar.
+      registerType: 'prompt',
       // El manifest NO lo genera este plugin: se sirve dinámicamente desde el
       // backend (/api/configuracion/pwa/manifest.webmanifest, enlazado desde
       // index.html) para que el nombre y el ícono de la PWA instalada reflejen

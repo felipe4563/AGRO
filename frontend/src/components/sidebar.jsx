@@ -38,7 +38,6 @@ const MENU_GROUPS = [
   },
   {
     label: 'Reportes',
-    collapsible: true,
     items: [
       { label: 'Reportes', path: '/reportes', icono: 'reportes', action: null, subject: null,
         anyPermission: [
@@ -142,46 +141,68 @@ function MenuItem({ path, label, icono, onNavegar, badge }) {
   );
 }
 
-// ── Grupo de navegación (con soporte de acordeón) ────────────────────────
-function MenuGroup({ label, items, collapsible, onNavegar, badges }) {
+// Clave de localStorage para recordar si un grupo quedó abierto o cerrado,
+// por nombre de grupo (no cambia entre sesiones ni dispositivos distintos).
+const claveGrupo = (label) => `sidebar_grupo_${label.toLowerCase().replace(/\s+/g, '_')}`;
+
+function leerPreferenciaGrupo(label, contieneActivo) {
+  try {
+    const guardado = localStorage.getItem(claveGrupo(label));
+    if (guardado !== null) return guardado === '1';
+  } catch { /* localStorage no disponible (modo privado, etc.) */ }
+  // Sin preferencia guardada: abierto solo si tiene la página activa.
+  return contieneActivo;
+}
+
+// ── Grupo de navegación (acordeón, con estado recordado por grupo) ───────
+// forzarAbierto: lo activa el buscador del sidebar cuando hay coincidencias
+// en este grupo — ignora el estado guardado sin pisarlo (no se persiste).
+function MenuGroup({ label, items, onNavegar, badges, forzarAbierto }) {
   const location = useLocation();
   const contieneActivo = items.some((item) => location.pathname.startsWith(item.path));
-  const [abierto, setAbierto] = useState(!collapsible || contieneActivo);
+  const [abierto, setAbierto] = useState(() => leerPreferenciaGrupo(label, contieneActivo));
 
+  // Si navegás a una página de un grupo cerrado, se abre solo (y se recuerda).
   useEffect(() => {
-    if (collapsible && contieneActivo) setAbierto(true);
-  }, [collapsible, contieneActivo]);
+    if (contieneActivo && !abierto) {
+      setAbierto(true);
+      try { localStorage.setItem(claveGrupo(label), '1'); } catch { /* noop */ }
+    }
+  }, [contieneActivo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (items.length === 0) return null;
 
+  const toggle = () => {
+    setAbierto((v) => {
+      const nuevo = !v;
+      try { localStorage.setItem(claveGrupo(label), nuevo ? '1' : '0'); } catch { /* noop */ }
+      return nuevo;
+    });
+  };
+
+  const efectivoAbierto = forzarAbierto || abierto;
+
   return (
     <div className="mb-1">
-      {collapsible ? (
-        <button
-          onClick={() => setAbierto((v) => !v)}
-          className="w-full flex items-center justify-between px-3 mb-1
-                     text-xs font-semibold uppercase tracking-widest
-                     text-zinc-400 dark:text-zinc-600
-                     hover:text-zinc-600 dark:hover:text-zinc-400
-                     transition-colors"
+      <button
+        onClick={toggle}
+        className="w-full flex items-center justify-between px-3 mb-1
+                   text-xs font-semibold uppercase tracking-widest
+                   text-zinc-400 dark:text-zinc-600
+                   hover:text-zinc-600 dark:hover:text-zinc-400
+                   transition-colors"
+      >
+        {label}
+        <svg
+          className={`w-3 h-3 transition-transform duration-200 ${efectivoAbierto ? 'rotate-180' : ''}`}
+          fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"
         >
-          {label}
-          <svg
-            className={`w-3 h-3 transition-transform duration-200 ${abierto ? 'rotate-180' : ''}`}
-            fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
-      ) : (
-        <p className="text-xs font-semibold uppercase tracking-widest
-                      text-zinc-400 dark:text-zinc-600 px-3 mb-1">
-          {label}
-        </p>
-      )}
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
       <div
         className={`space-y-0.5 overflow-hidden transition-all duration-200
-                    ${collapsible && !abierto ? 'max-h-0' : 'max-h-[1000px]'}`}
+                    ${efectivoAbierto ? 'max-h-[1000px]' : 'max-h-0'}`}
       >
         {items.map((item) => (
           <MenuItem key={item.path} {...item} onNavegar={onNavegar} badge={badges?.[item.badgeKey]} />
@@ -198,6 +219,7 @@ function SidebarContent({ onCerrar, onNavegar }) {
   const { puede } = usePermission();
   const { nombreEmpresa, logoUrl } = useConfiguracion();
   const [badges, setBadges] = useState({});
+  const [busqueda, setBusqueda] = useState('');
 
   const puedeVer = ({ action, subject, anyPermission }) => {
     if (anyPermission) return anyPermission.some(p => puede(p.action, p.subject));
@@ -208,6 +230,19 @@ function SidebarContent({ onCerrar, onNavegar }) {
   const gruposVisibles = MENU_GROUPS
     .map((grupo) => ({ ...grupo, items: grupo.items.filter(puedeVer) }))
     .filter((grupo) => grupo.items.length > 0);
+
+  // Mientras hay texto en el buscador, cada grupo solo muestra los ítems
+  // cuyo nombre matchea y se fuerza abierto (sin pisar la preferencia
+  // guardada) — al borrar el texto vuelve todo a como estaba.
+  const textoBusqueda = busqueda.trim().toLowerCase();
+  const gruposFiltrados = textoBusqueda
+    ? gruposVisibles
+        .map((grupo) => ({
+          ...grupo,
+          items: grupo.items.filter((item) => item.label.toLowerCase().includes(textoBusqueda)),
+        }))
+        .filter((grupo) => grupo.items.length > 0)
+    : gruposVisibles;
 
   useEffect(() => {
     if (!puede('ver', 'cobros')) return;
@@ -267,6 +302,36 @@ function SidebarContent({ onCerrar, onNavegar }) {
         </button>
       </div>
 
+      {/* ── BUSCADOR ─────────────────────────────────────────────────── */}
+      <div className="px-3 pt-3 shrink-0">
+        <div className="relative">
+          <svg className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 dark:text-zinc-500"
+               fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+          </svg>
+          <input
+            type="text"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            placeholder="Buscar en el menú..."
+            className="w-full pl-9 pr-8 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700
+                       rounded-xl text-sm text-zinc-900 dark:text-white placeholder:text-zinc-400
+                       outline-none focus:ring-2 focus:ring-yellow-400/60 focus:border-yellow-400"
+          />
+          {busqueda && (
+            <button
+              onClick={() => setBusqueda('')}
+              aria-label="Limpiar búsqueda"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* ── NAVEGACIÓN ───────────────────────────────────────────────── */}
       <nav className="flex-1 px-3 py-3 overflow-y-auto space-y-3
                       [&::-webkit-scrollbar]:w-1.5
@@ -274,9 +339,19 @@ function SidebarContent({ onCerrar, onNavegar }) {
                       [&::-webkit-scrollbar-thumb]:rounded-full
                       [&::-webkit-scrollbar-thumb]:bg-zinc-200
                       dark:[&::-webkit-scrollbar-thumb]:bg-zinc-700">
-        {gruposVisibles.map((grupo) => (
-          <MenuGroup key={grupo.label} {...grupo} onNavegar={onNavegar} badges={badges} />
-        ))}
+        {gruposFiltrados.length === 0 ? (
+          <p className="text-sm text-zinc-400 text-center py-6">Sin resultados para "{busqueda}"</p>
+        ) : (
+          gruposFiltrados.map((grupo) => (
+            <MenuGroup
+              key={grupo.label}
+              {...grupo}
+              onNavegar={onNavegar}
+              badges={badges}
+              forzarAbierto={!!textoBusqueda}
+            />
+          ))
+        )}
       </nav>
     </div>
   );
