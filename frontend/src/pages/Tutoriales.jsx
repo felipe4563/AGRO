@@ -3,6 +3,10 @@ import { usePermission } from '../hooks/usePermission';
 import PageWrapper from '../components/PageWrapper';
 
 const API_BASE = import.meta.env.VITE_API_URL.replace('/api', '');
+// Cambiá este número cada vez que se regraben los videos: la URL distinta
+// evita que Cloudflare (u otro proxy intermedio) siga sirviendo de su caché
+// una versión vieja del archivo con el mismo nombre.
+const VERSION_VIDEOS = 2;
 
 // Cada tutorial requiere al menos uno de los permisos listados para
 // mostrarse (como el ítem "Reportes" del sidebar). Sin `permisos`, es
@@ -114,7 +118,7 @@ export default function Tutoriales() {
                 {estaAbierto ? (
                   <video
                     className="w-full aspect-video bg-black"
-                    src={`${API_BASE}/tutoriales/${t.archivo}`}
+                    src={`${API_BASE}/tutoriales/${t.archivo}?v=${VERSION_VIDEOS}`}
                     controls
                     autoPlay
                   />
