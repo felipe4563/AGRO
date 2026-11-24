@@ -1,0 +1,14 @@
+{
+  "name": "tutoriales-video",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Herramientas para grabar los video tutoriales del panel de SIS-AGRO (Playwright + voz de Windows + ffmpeg).",
+  "scripts": {
+    "respaldar": "bash respaldar.sh",
+    "preparar": "bash preparar.sh",
+    "restaurar": "bash restaurar.sh"
+  },
+  "devDependencies": {
+    "playwright": "^1.49.0"
+  }
+}

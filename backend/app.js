@@ -63,6 +63,9 @@ const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 app.use('/uploads', express.static(uploadsDir));
 
+// ── Archivos estáticos (videos tutoriales) ────────────────────────────────
+app.use('/tutoriales', express.static(path.join(__dirname, 'tutoriales')));
+
 // ── Rutas API ─────────────────────────────────────────────────────────────
 app.use('/api/auth',authRoutes);
 app.use('/api/roles', rolesRoutes);

@@ -13,6 +13,7 @@ import ActualizarApp       from './components/ActualizarApp';
 import Login        from './pages/Login';
 import SinPermiso   from './pages/SinPermiso';
 import Dashboard    from './pages/Dashboard';
+import Tutoriales   from './pages/Tutoriales';
 import Roles        from './pages/roles/Roles';
 import Usuarios       from './pages/usuarios/Usuarios';
 import Sucursales     from './pages/sucursales/Sucursales';
@@ -332,6 +333,13 @@ export default function App() {
             <Route path="/perfil" element={
               <PageRoute>
                 <Perfil />
+              </PageRoute>
+            }/>
+
+            {/* ── Tutoriales (videos del sistema, visible para cualquiera con sesión) ── */}
+            <Route path="/tutoriales" element={
+              <PageRoute>
+                <Tutoriales />
               </PageRoute>
             }/>
 
