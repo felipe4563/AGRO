@@ -7,12 +7,22 @@
 -- contra la base de la instancia que se quiera resetear (nunca contra todas
 -- a la vez: cada cliente tiene su propia base).
 --
--- Antes de correrlo, hacé un respaldo (por si hace falta volver atrás):
---   docker compose exec mysql mysqldump -u root -p<pass> <db> > respaldo_antes_de_resetear.sql
+-- Para correrlo, parado en la carpeta del proyecto en el VPS (ejemplo con la
+-- instancia "agrohidalgo" — cambiá el nombre por la instancia que toque):
 --
--- Para correrlo (ejemplo, modo multi-instancia, instancia "agrohidalgo"):
+--   set -a; source instancias/agrohidalgo.env; set +a
+--
+--   # 1. Respaldo primero (por si hace falta volver atrás):
+--   docker compose -p agrohidalgo --env-file instancias/agrohidalgo.env exec mysql \
+--     mysqldump -u root -p"$DB_ROOT_PASSWORD" "$DB_NAME" > respaldo_agrohidalgo_antes_de_resetear.sql
+--
+--   # 2. El reset:
 --   docker compose -p agrohidalgo --env-file instancias/agrohidalgo.env exec -T mysql \
---     mysql -u root -p<pass> <db> < deploy/resetear-operacion.sql
+--     mysql -u root -p"$DB_ROOT_PASSWORD" "$DB_NAME" < deploy/resetear-operacion.sql
+--
+-- Modo viejo (una sola instancia, .env en la raíz): mismos comandos pero sin
+-- "-p agrohidalgo --env-file ...", y haciendo "source .env" en vez del
+-- archivo de instancias/.
 --
 -- Después de correrlo, cada sucursal va a necesitar una Nueva Entrada en
 -- Almacén para volver a tener stock (los productos quedan, pero con 0
